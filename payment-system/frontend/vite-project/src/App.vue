@@ -15,6 +15,7 @@
 
 <script setup lang="ts">
 import { onErrorCaptured } from 'vue'
+import { useModuleStore } from '@/stores/module'
 
 // 错误处理
 onErrorCaptured((err) => {
@@ -26,6 +27,9 @@ onErrorCaptured((err) => {
 const retry = () => {
   window.location.reload()
 }
+
+const moduleStore = useModuleStore()
+console.log(moduleStore.modules)
 </script>
 
 <style>
