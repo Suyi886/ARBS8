@@ -1,13 +1,18 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory } from 'vue-router'
+import type { RouteRecordRaw } from 'vue-router'
 
-const routes = [
-  { path: '/', component: () => import('@/pages/Home.vue') }, // 首页
-  { path: '/dashboard', component: () => import('@/pages/Dashboard.vue') }, // 后台页面
-];
+const routes: RouteRecordRaw[] = [
+  {
+    path: '/',
+    name: 'Home',
+    component: () => import('@/pages/Home.vue')
+  }
+  // 其他路由配置...
+]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes,
-});
+  routes
+})
 
-export default router;
+export default router
