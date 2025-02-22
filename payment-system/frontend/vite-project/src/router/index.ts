@@ -6,13 +6,29 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     name: 'Home',
     component: () => import('@/pages/Home.vue')
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('@/pages/Dashboard.vue'),
+    meta: { requiresAuth: true }
   }
-  // 其他路由配置...
 ]
 
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+// 路由守卫
+router.beforeEach((to, from, next) => {
+  const isLoggedIn = !!localStorage.getItem('token')
+  
+  if (to.meta.requiresAuth && !isLoggedIn) {
+    next('/login')
+  } else {
+    next()
+  }
 })
 
 export default router
