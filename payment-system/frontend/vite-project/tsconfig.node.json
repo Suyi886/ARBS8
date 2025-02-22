@@ -1,24 +1,14 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
-    "target": "ES2022",
-    "lib": ["ES2023"],
-    "module": "ESNext",
-    "skipLibCheck": true,
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "baseUrl": "./",         // 基础路径
+    "types": ["node"],       // 支持 Node.js 类型
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "strict": true,          // 启用严格模式
+    "target": "esnext",      // 使用最新的 JavaScript 标准
+    "module": "esnext"
   },
-  "include": ["vite.config.ts"]
+  "include": ["server/**/*"], // 假如后端代码在 server 目录下
+  "exclude": ["node_modules"]
 }
