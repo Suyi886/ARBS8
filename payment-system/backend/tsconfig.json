@@ -3,7 +3,7 @@
     "target": "es6",
     "module": "commonjs",
     "outDir": "./dist",
-    "rootDir": "./backend",          // 根目录设置为 backend
+    "rootDir": "./",               // 根目录设置为当前目录
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -13,8 +13,8 @@
     "allowJs": true                 // 添加这行
   },
   "include": [
-    "server/**/*",                  // 相对于 backend 的路径
-    "config/**/*"                   // 相对于 backend 的路径
+    "./server/**/*",                // 相对于当前目录的路径
+    "./config/**/*"                 // 相对于当前目录的路径
   ],
   "exclude": [
     "node_modules",
