@@ -1,78 +1,126 @@
-// 导入必要的模块 (就像准备建房子需要的各种工具和材料)
-import express from 'express';
-import cors from 'cors';
-import bodyParser from 'body-parser';
-import dotenv from 'dotenv';
-import userRoutes from './server/routes/userRoutes';
-import { connectDB } from './config/database';
+// server/routes/userRoutes.ts
 
-// 加载环境变量 (就像查看建房设计图纸)
-dotenv.config();
+import { Router, Request, Response } from 'express';
+import { RowDataPacket } from 'mysql2/promise';
+import { connectDB } from '../../config/database';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
-// 创建 Express 应用实例 (相当于打地基)
-const app = express();
+const router = Router();
 
-// 定义端口 (就像确定房子的地址)
-const PORT = process.env.PORT || 3000;
+// 定义接口（像设计表格模板）
+interface RegisterRequest {
+    username: string;
+    password: string;
+}
 
-// 中间件配置 (就像房子的基础设施)
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173', // 前端地址
-  credentials: true // 允许携带认证信息
-}));
+interface LoginRequest {
+    username: string;
+    password: string;
+}
 
-// 解析请求体 (就像安装管道系统)
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// 定义用户接口，继承 RowDataPacket（像设计标准居民信息表）
+interface User extends RowDataPacket {
+    id: number;
+    username: string;
+    password: string;
+    created_at: Date;
+}
 
-// 基础路由 (就像房子的门厅)
-app.get('/', (req, res) => {
-  res.json({ message: '支付系统API服务正在运行' });
+// 用户注册路由（像办理入住手续）
+router.post('/register', async (req: Request<{}, {}, RegisterRequest>, res: Response) => {
+    try {
+        const { username, password } = req.body;
+
+        // 1. 检查用户名是否存在（像检查房间是否已被占用）
+        const [existingUsers] = await connectDB.execute<User[]>(
+            'SELECT * FROM users WHERE username = ?',
+            [username]
+        );
+
+        if (existingUsers.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: '用户名已存在'
+            });
+        }
+
+        // 2. 密码加密（像安装安全门锁）
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // 3. 保存到数据库（像登记新住户信息）
+        await connectDB.execute(
+            'INSERT INTO users (username, password) VALUES (?, ?)',
+            [username, hashedPassword]
+        );
+
+        res.status(201).json({
+            success: true,
+            message: '用户注册成功'
+        });
+
+    } catch (error) {
+        console.error('注册错误:', error);
+        res.status(500).json({
+            success: false,
+            message: '注册失败',
+            error: process.env.NODE_ENV === 'development' ? error : undefined
+        });
+    }
 });
 
-// 路由配置 (就像房子的不同房间)
-app.use('/api/users', userRoutes);
+// 用户登录路由（像验证住户身份）
+router.post('/login', async (req: Request<{}, {}, LoginRequest>, res: Response) => {
+    try {
+        const { username, password } = req.body;
 
-// 错误处理中间件 (就像房子的安全系统)
-app.use((err: any, req: any, res: any, next: any) => {
-  console.error('错误:', err.stack);
-  res.status(500).json({
-    message: '服务器内部错误',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
+        // 1. 查询用户（像查找住户记录）
+        const [users] = await connectDB.execute<User[]>(
+            'SELECT * FROM users WHERE username = ?',
+            [username]
+        );
+
+        const user = users[0];
+
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: '用户名或密码错误'
+            });
+        }
+
+        // 2. 验证密码（像验证门禁卡）
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                message: '用户名或密码错误'
+            });
+        }
+
+        // 3. 生成JWT令牌（像发放电子门禁卡）
+        const token = jwt.sign(
+            { id: user.id, username: user.username },
+            process.env.JWT_SECRET || 'your-secret-key',
+            { expiresIn: '24h' }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: '登录成功',
+            token
+        });
+
+    } catch (error) {
+        console.error('登录错误:', error);
+        res.status(401).json({
+            success: false,
+            message: '登录失败',
+            error: process.env.NODE_ENV === 'development' ? error : undefined
+        });
+    }
 });
 
-// 处理未找到的路由 (就像处理走错房间的情况)
-app.use((req, res) => {
-  res.status(404).json({ message: '请求的资源不存在' });
-});
-
-// 启动服务器 (就像正式开始使用这座房子)
-const startServer = async () => {
-  try {
-    // 连接数据库 (就像接通水电)
-    await connectDB();
-    console.log('数据库连接成功');
-
-    // 启动服务器监听 (就像打开房子的大门)
-    app.listen(PORT, () => {
-      console.log(`服务器运行在 http://localhost:${PORT}`);
-      console.log('环境:', process.env.NODE_ENV || 'development');
-    });
-
-  } catch (error) {
-    console.error('服务器启动失败:', error);
-    process.exit(1);
-  }
-};
-
-// 启动应用 (开始使用这座房子)
-startServer();
-
-// 优雅退出处理 (就像安全关闭房子)
-process.on('SIGTERM', () => {
-  console.log('收到 SIGTERM 信号，优雅退出...');
-  process.exit(0);
-});
-
-export default app;
+export default router;

@@ -1,19 +1,25 @@
 {
-    "compilerOptions": {
-      "target": "es6",
-      "module": "commonjs",
-      "outDir": "./dist",
-      "rootDir": "./",
-      "strict": true,
-      "esModuleInterop": true,
-      "skipLibCheck": true,
-      "forceConsistentCasingInFileNames": true
-    },
-    "include": [
-      "**/*"
-    ],
-    "exclude": [
-      "node_modules"
-    ]
-  }
-  
+  "compilerOptions": {
+    "target": "es6",
+    "module": "commonjs",
+    "outDir": "./dist",
+    "rootDir": "./backend",          // 根目录设置为 backend
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",     // 添加这行
+    "resolveJsonModule": true,      // 添加这行
+    "allowJs": true                 // 添加这行
+  },
+  "include": [
+    "server/**/*",                  // 相对于 backend 的路径
+    "config/**/*"                   // 相对于 backend 的路径
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
+
+
