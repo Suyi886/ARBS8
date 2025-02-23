@@ -1,24 +1,26 @@
 {
+  "types": ["uuid"],
   "compilerOptions": {
     "target": "es6",
     "module": "commonjs",
     "outDir": "./dist",
-    "rootDir": "./",
+    "rootDir": "./",               // 根目录设置为当前目录
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "allowJs": true,
-    "types": ["node", "uuid"]
+    "moduleResolution": "node",     // 添加这行
+    "resolveJsonModule": true,      // 添加这行
+    "allowJs": true                 // 添加这行
   },
   "include": [
-    "./server/**/*",
-    "./config/**/*"
+    "./server/**/*",                // 相对于当前目录的路径
+    "./config/**/*"                 // 相对于当前目录的路径
   ],
   "exclude": [
     "node_modules",
     "dist"
   ]
 }
+
+

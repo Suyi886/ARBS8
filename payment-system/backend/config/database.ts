@@ -2,13 +2,13 @@ import mysql, { Pool } from 'mysql2/promise';
 import dotenv from 'dotenv';
 
 // 加载环境变量（像读取建房配置）
-dotenv.config();
+dotenv.config({ path: require('path').resolve(__dirname, '../.env') });
 
 // 创建数据库连接池（就像建立一个物业服务中心）
 export const connectDB: Pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',      // 数据库服务器地址
     user: process.env.DB_USER || 'root',          // 数据库用户名
-    password: process.env.DB_PASS || '',       // 数据库密码
+    password: process.env.DB_PASS || 'Ax112211',          // 数据库密码
     database: process.env.DB_NAME || 'payment_system', // 数据库名称
     port: parseInt(process.env.DB_PORT || '3306', 10), // 数据库端口
     waitForConnections: true,    // 是否等待连接
