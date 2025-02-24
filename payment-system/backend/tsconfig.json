@@ -3,12 +3,10 @@
   "compilerOptions": {
     "target": "es6",
     "module": "commonjs",
-    "outDir": "./dist",
     "rootDir": "./",               // 根目录设置为当前目录
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",     // 添加这行
     "resolveJsonModule": true,      // 添加这行
     "allowJs": true                 // 添加这行
