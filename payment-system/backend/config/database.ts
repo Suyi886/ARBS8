@@ -32,16 +32,45 @@ export const testConnection = async () => {
 // 数据库同步函数（像装修和检查房屋设施）
 export const syncDatabase = async () => {
     try {
-        // 测试连接
         await testConnection();
         
-        // 创建用户表（如果不存在）
+        // 创建用户表
         await connectDB.execute(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 username VARCHAR(50) UNIQUE NOT NULL,
                 password VARCHAR(255) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // 创建充值订单表
+        await connectDB.execute(`
+            CREATE TABLE IF NOT EXISTS recharge_orders (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_id INT NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                status ENUM('pending', 'completed', 'failed') DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                updated_by VARCHAR(50),
+                remark TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        `);
+
+        // 创建提现订单表
+        await connectDB.execute(`
+            CREATE TABLE IF NOT EXISTS withdraw_orders (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_id INT NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                status ENUM('pending', 'completed', 'failed') DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                updated_by VARCHAR(50),
+                remark TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         `);
         

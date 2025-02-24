@@ -4,13 +4,13 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev:client": "vite",
-    "dev:server": "nodemon --exec ts-node backend/server/index.ts", 
+    "dev:client": "cd frontend/vite-project && npm run dev",
+    "dev:server": "cd backend && npm run dev:server",
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "build": "vue-tsc && vite build",
-    "build:server": "tsc -p tsconfig.server.json",
-    "preview": "vite preview",
-    "start": "node dist/index.js"
+    "build:server": "tsc -p tsconfig.server.json",    "preview": "vite preview",
+    "start": "node dist/index.js",
+    "install:all": "npm install && cd frontend/vite-project && npm install && cd ../../backend && npm install"
   },
   "dependencies": {
     "axios": "^1.6.0",

@@ -1,10 +1,9 @@
-// backend/server/index.ts
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { testConnection, syncDatabase } from '../config/database';
 import userRoutes from './routes/userRoutes';
+import orderRoutes from './routes/orderRoutes'; // 导入新路由
 
 // 加载环境变量（像查看建筑规划）
 dotenv.config();
@@ -26,8 +25,11 @@ app.get('/', (req, res) => {
     res.send('Welcome to ARBS8 Payment System API');
 });
 
-// 注册路由（像规划房间）
+// 注册用户路由（像规划房间）
 app.use('/api/users', userRoutes);
+
+// 注册订单路由（新添加的路由）
+app.use('/api/orders', orderRoutes);
 
 // 错误处理中间件（像安装安全系统）
 app.use((err: any, req: any, res: any, next: any) => {
