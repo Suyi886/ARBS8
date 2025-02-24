@@ -12,7 +12,7 @@ interface UserState {
 export const useUserStore = defineStore('user', {
   state: (): UserState => ({
     token: localStorage.getItem('token'),
-    userInfo: null
+    userInfo: JSON.parse(localStorage.getItem('userInfo') || 'null')
   }),
 
   getters: {
@@ -33,6 +33,11 @@ export const useUserStore = defineStore('user', {
 
     setUserInfo(userInfo: UserState['userInfo']) {
       this.userInfo = userInfo
+      if (userInfo) {
+        localStorage.setItem('userInfo', JSON.stringify(userInfo))
+      } else {
+        localStorage.removeItem('userInfo')
+      }
     }
   }
 })
