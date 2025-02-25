@@ -93,8 +93,17 @@ const handleLogin = async () => {
     userStore.setToken(token)
     
     // 设置用户信息（模拟从后端获取）
+    // 使用用户名生成一个固定的唯一ID
+    const generateId = (username: string) => {
+      let id = 0
+      for (let i = 0; i < username.length; i++) {
+        id += username.charCodeAt(i) * (i + 1) // 乘以位置索引+1，使得字符顺序影响ID
+      }
+      return id * 100 // 移除随机部分，确保相同用户名总是生成相同ID
+    }
+    
     const userInfo = {
-      id: 10086,
+      id: generateId(loginForm.username),
       username: loginForm.username,
       role: 'admin'
     }
