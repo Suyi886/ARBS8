@@ -61,8 +61,10 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
+import { useUserStore } from '@/stores/user'  // 导入用户store
 
 const router = useRouter()
+const userStore = useUserStore()  // 使用用户store
 const loginFormRef = ref<FormInstance>()
 const loading = ref(false)
 
@@ -85,7 +87,18 @@ const handleLogin = async () => {
     
     // 模拟登录API调用
     await new Promise(resolve => setTimeout(resolve, 1000))
-    localStorage.setItem('token', 'demo-token')
+    
+    // 设置token和用户信息
+    const token = 'demo-token'
+    userStore.setToken(token)
+    
+    // 设置用户信息（模拟从后端获取）
+    const userInfo = {
+      id: 10086,
+      username: loginForm.username,
+      role: 'admin'
+    }
+    userStore.setUserInfo(userInfo)
     
     ElMessage.success('登录成功')
     router.push('/dashboard')

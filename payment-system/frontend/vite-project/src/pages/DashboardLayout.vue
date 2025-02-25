@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { UserFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
@@ -61,7 +61,7 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const activeMenu = ref('dashboard') // 当前选中的菜单项
-const userInfo = userStore.userInfo // 获取用户信息
+const userInfo = computed(() => userStore.userInfo) // 使用计算属性获取用户信息
 
 // 菜单选择处理
 const handleMenuSelect = (index: string) => {
