@@ -138,13 +138,96 @@ export class WebSocketService {
 
   // 发送消息
   public sendMessage(message: any): boolean {
-    if (this.isConnected.value && this.isConnected.value) {
+    if (this.isConnected.value) {
       console.log('WebSocket发送消息:', message);
-      // 这里需要根据实际情况实现WebSocket发送逻辑
+      
+      // 在这里应该实现真实的WebSocket发送逻辑
+      // 由于我们在演示环境中没有真实的WebSocket服务器
+      // 所以这里我们模拟一个本地的消息传递
+      
+      // 将消息存储到localStorage
+      this.storeMessage(message);
+      
+      // 模拟消息广播 - 在2秒后触发事件
+      setTimeout(() => {
+        this.triggerEvent(message);
+      }, 500);
+      
       return true;
     } else {
       console.error('WebSocket未连接，无法发送消息');
       return false;
+    }
+  }
+  
+  // 存储消息到localStorage
+  private storeMessage(message: any): void {
+    if (!message) return;
+    
+    try {
+      // 根据消息类型处理
+      if (message.type === 'new_order') {
+        // 保存新订单到realOrders
+        const storedOrders = localStorage.getItem('realOrders');
+        let orders = storedOrders ? JSON.parse(storedOrders) : [];
+        
+        // 确保是数组
+        if (!Array.isArray(orders)) {
+          orders = [];
+        }
+        
+        // 添加新订单
+        const newOrder = {
+          id: message.orderId || Date.now(),
+          orderNumber: message.orderNumber,
+          type: message.type,
+          amount: message.amount,
+          customerName: '当前用户',
+          customerAccount: 'customer@example.com',
+          status: message.status,
+          remark: message.remark || '',
+          createdAt: message.timestamp || new Date().toISOString().split('T')[0],
+          updatedAt: message.timestamp || new Date().toISOString().split('T')[0],
+          updatedBy: '客户'
+        };
+        
+        // 检查订单是否已存在
+        const existingIndex = orders.findIndex((o: any) => o.orderNumber === message.orderNumber);
+        if (existingIndex !== -1) {
+          // 更新现有订单
+          orders[existingIndex] = {...orders[existingIndex], ...newOrder};
+        } else {
+          // 添加新订单
+          orders.push(newOrder);
+        }
+        
+        // 保存回localStorage
+        localStorage.setItem('realOrders', JSON.stringify(orders));
+      } 
+      else if (message.type === 'status_change') {
+        // 更新订单状态
+        const storedOrders = localStorage.getItem('realOrders');
+        let orders = storedOrders ? JSON.parse(storedOrders) : [];
+        
+        // 确保是数组
+        if (!Array.isArray(orders)) {
+          return;
+        }
+        
+        // 查找并更新订单
+        const orderIndex = orders.findIndex((o: any) => o.orderNumber === message.orderNumber);
+        if (orderIndex !== -1) {
+          orders[orderIndex].status = message.newStatus;
+          orders[orderIndex].remark = message.remark || orders[orderIndex].remark;
+          orders[orderIndex].updatedAt = message.timestamp || new Date().toISOString().split('T')[0];
+          orders[orderIndex].updatedBy = message.updatedBy || '系统';
+          
+          // 保存回localStorage
+          localStorage.setItem('realOrders', JSON.stringify(orders));
+        }
+      }
+    } catch (error) {
+      console.error('存储消息到localStorage失败:', error);
     }
   }
 

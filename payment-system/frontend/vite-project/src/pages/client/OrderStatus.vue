@@ -298,33 +298,68 @@ const mockFetchOrders = async (params: any) => {
   // 模拟API延迟
   await new Promise(resolve => setTimeout(resolve, 500))
   
-  // 根据过滤条件生成随机数据
-  const mockData = Array.from({ length: 20 }, (_, i) => {
-    const isRecharge = params.orderType === 'recharge'
-    const type = isRecharge ? 'recharge' : 'withdraw'
-    const statusPrefix = isRecharge ? 'recharge_' : 'withdraw_'
-    const statusOptions = ['pending', 'processing', 'completed', 'failed']
-    const statusSuffix = params.status && params.status.split('_')[1] 
-      ? params.status.split('_')[1] 
-      : statusOptions[Math.floor(Math.random() * statusOptions.length)]
-    
-    return {
-      id: i + 1,
-      orderNumber: `${type.charAt(0).toUpperCase()}${new Date().getFullYear()}${String(1000 + i).padStart(4, '0')}`,
-      type,
-      amount: (Math.random() * 1000 + 100).toFixed(2),
-      status: `${statusPrefix}${statusSuffix}`,
-      remark: Math.random() > 0.7 ? `这是订单${i + 1}的备注信息` : '',
-      createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0],
+  // 从localStorage获取真实订单数据
+  const storedOrders = localStorage.getItem('realOrders')
+  let realOrders = storedOrders ? JSON.parse(storedOrders) : []
+  
+  // 确保是数组
+  if (!Array.isArray(realOrders)) {
+    realOrders = []
+  }
+  
+  // 根据订单类型和其他条件筛选
+  const filteredData = realOrders.filter((order: {
+    type: string, 
+    orderNumber: string, 
+    status: string, 
+    createdAt: string
+  }) => {
+    // 根据订单类型筛选
+    if (params.orderType && order.type !== params.orderType) {
+      return false
     }
+    
+    // 按订单号筛选
+    if (params.orderNumber && !order.orderNumber.includes(params.orderNumber)) {
+      return false
+    }
+    
+    // 按状态筛选
+    if (params.status && order.status !== params.status) {
+      return false
+    }
+    
+    // 按日期范围筛选
+    if (params.dateRange && params.dateRange.length === 2) {
+      const orderDate = new Date(order.createdAt)
+      const startDate = new Date(params.dateRange[0])
+      const endDate = new Date(params.dateRange[1])
+      endDate.setDate(endDate.getDate() + 1) // 包含结束日期
+      
+      if (orderDate < startDate || orderDate >= endDate) {
+        return false
+      }
+    }
+    
+    return true
   })
   
-  // 如果有订单号搜索，只返回匹配的订单
-  const filteredData = params.orderNumber 
-    ? mockData.filter(order => order.orderNumber.includes(params.orderNumber))
-    : mockData
-    
+  // 如果没有找到订单，显示提示
+  if (filteredData.length === 0) {
+    console.log('没有找到符合条件的订单')
+    // 检查是否有任何真实订单
+    if (realOrders.length === 0) {
+      ElMessage.info('您还没有提交过订单，请先提交充值或提现申请')
+    } else if (params.orderType) {
+      ElMessage.info(`没有找到符合条件的${params.orderType === 'recharge' ? '充值' : '提现'}订单`)
+    }
+  }
+  
+  // 排序：按创建时间降序
+  filteredData.sort((a: { createdAt: string }, b: { createdAt: string }) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
+  
   // 模拟分页
   const start = (params.page - 1) * params.pageSize
   const end = start + params.pageSize
@@ -455,7 +490,12 @@ const getStatusType = (status: string) => {
 
 // 生命周期钩子
 onMounted(() => {
+  // 初始化：加载订单数据
   fetchOrders()
+  
+  // 确保至少有一些初始数据
+  ensureInitialData()
+  
   // 添加WebSocket事件监听
   webSocketService.addEventListener(handleWebSocketEvent)
 })
@@ -585,6 +625,51 @@ const submitIssue = async () => {
     ElMessage.error('提交问题失败，请重试')
   } finally {
     issueDialog.loading = false
+  }
+}
+
+// 确保至少有一些初始订单数据
+const ensureInitialData = () => {
+  // 检查localStorage中是否已经有订单数据
+  const storedOrders = localStorage.getItem('realOrders')
+  let realOrders = storedOrders ? JSON.parse(storedOrders) : []
+  
+  // 如果没有订单数据，创建一些初始测试订单
+  if (!Array.isArray(realOrders) || realOrders.length === 0) {
+    // 创建一个充值订单和一个提现订单作为示例
+    realOrders = [
+      {
+        id: Date.now(),
+        orderNumber: `R${new Date().getFullYear()}0001`,
+        type: 'recharge',
+        amount: '1000.00',
+        customerName: '当前用户',
+        customerAccount: 'customer@example.com',
+        status: 'recharge_completed',
+        remark: '初始充值订单示例',
+        createdAt: new Date().toISOString().split('T')[0],
+        updatedAt: new Date().toISOString().split('T')[0],
+        updatedBy: '系统'
+      },
+      {
+        id: Date.now() + 1,
+        orderNumber: `W${new Date().getFullYear()}0001`,
+        type: 'withdraw',
+        amount: '500.00',
+        customerName: '当前用户',
+        customerAccount: 'customer@example.com',
+        status: 'withdraw_pending',
+        remark: '初始提现订单示例',
+        createdAt: new Date().toISOString().split('T')[0],
+        updatedAt: new Date().toISOString().split('T')[0],
+        updatedBy: '系统'
+      }
+    ]
+    
+    // 保存到localStorage
+    localStorage.setItem('realOrders', JSON.stringify(realOrders))
+    
+    console.log('已创建初始订单数据示例')
   }
 }
 </script>
