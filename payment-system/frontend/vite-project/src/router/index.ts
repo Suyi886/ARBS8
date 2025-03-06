@@ -16,12 +16,6 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false }
   },
   {
-    path: '/register',
-    name: 'Register',
-    component: () => import('@/pages/Register.vue'),
-    meta: { requiresAuth: false }
-  },
-  {
     path: '/home',
     name: 'Home',
     component: () => import('@/pages/Home.vue'),
@@ -117,14 +111,14 @@ const router = createRouter({
   routes
 })
 
-// 修改路由守卫逻辑
+// 加强路由守卫 - 严格的权限控制
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
   const isLoggedIn = userStore.isLoggedIn
   const isAdmin = userStore.isAdmin
   
-  // 已登录用户访问登录/注册页面时重定向到相应的首页
-  if (isLoggedIn && (to.path === '/login' || to.path === '/register')) {
+  // 已登录用户访问登录页面时重定向到相应的首页
+  if (isLoggedIn && to.path === '/login') {
     next(isAdmin ? '/admin' : '/client')
     return
   }

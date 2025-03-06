@@ -37,13 +37,6 @@
             />
           </el-form-item>
           
-          <el-form-item prop="role">
-            <el-radio-group v-model="loginForm.role" class="role-selection">
-              <el-radio label="client">我是客户</el-radio>
-              <el-radio label="admin">我是管理员</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          
           <el-form-item>
             <el-button 
               type="primary" 
@@ -54,16 +47,6 @@
               登录
             </el-button>
           </el-form-item>
-
-          <div class="form-footer">
-            <el-button 
-              type="text" 
-              @click="goToRegister"
-              class="register-link"
-            >
-              没有账号？点击注册
-            </el-button>
-          </div>
         </el-form>
       </el-card>
     </div>
@@ -85,14 +68,19 @@ const loading = ref(false)
 const loginForm = reactive({
   username: '',
   password: '',
-  role: 'client' // 默认选择客户角色
 })
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-  role: [{ required: true, message: '请选择角色', trigger: 'change' }]
 }
+
+// 用户数据库（模拟）
+const userDb = [
+  { id: 1, username: 'admin', password: 'admin123', role: 'admin' },
+  { id: 2, username: 'user1', password: 'user123', role: 'client' },
+  { id: 101, username: 'suyi6', password: '123456', role: 'client' },
+]
 
 const handleLogin = async () => {
   if (!loginFormRef.value) return
@@ -101,34 +89,33 @@ const handleLogin = async () => {
     loading.value = true
     await loginFormRef.value.validate()
     
-    // 模拟登录API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 模拟登录验证 - 在实际项目中应该调用API进行身份验证
+    const user = userDb.find(u => 
+      u.username === loginForm.username && 
+      u.password === loginForm.password
+    )
     
-    // 设置token和用户信息
-    const token = 'demo-token'
-    userStore.setToken(token)
-    
-    // 设置用户信息（模拟从后端获取）
-    // 使用用户名生成一个固定的唯一ID
-    const generateId = (username: string) => {
-      let id = 0
-      for (let i = 0; i < username.length; i++) {
-        id += username.charCodeAt(i) * (i + 1) // 乘以位置索引+1，使得字符顺序影响ID
-      }
-      return id * 100 // 移除随机部分，确保相同用户名总是生成相同ID
+    if (!user) {
+      ElMessage.error('用户名或密码错误')
+      return
     }
     
+    // 设置token和用户信息
+    const token = 'demo-token-' + user.id
+    userStore.setToken(token)
+    
+    // 设置用户信息
     const userInfo = {
-      id: generateId(loginForm.username),
-      username: loginForm.username,
-      role: loginForm.role // 使用选择的角色
+      id: user.id,
+      username: user.username,
+      role: user.role
     }
     userStore.setUserInfo(userInfo)
     
     ElMessage.success('登录成功')
     
-    // 根据角色跳转到不同的页面
-    if (loginForm.role === 'admin') {
+    // 根据角色自动跳转到相应页面
+    if (user.role === 'admin') {
       router.push('/admin')
     } else {
       router.push('/client')
@@ -140,11 +127,6 @@ const handleLogin = async () => {
   } finally {
     loading.value = false
   }
-}
-
-// 跳转注册页面方法
-const goToRegister = () => {
-  router.push('/register')
 }
 </script>
 
@@ -242,59 +224,11 @@ h2 {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
-.role-selection {
-  width: 100%;
-  display: flex;
-  justify-content: space-around;
-  margin: 10px 0;
-}
-
 .login-button {
   width: 100%;
-  padding: 12px;
+  margin-top: 10px;
+  padding: 12px 0;
   font-size: 16px;
   border-radius: 8px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  margin-top: 10px;
-  background: linear-gradient(90deg, #1976d2, #2196f3);
-  border: none;
-  transition: all 0.3s;
-}
-
-.login-button:hover {
-  opacity: 0.9;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
-}
-
-.form-footer {
-  margin-top: 15px;
-  text-align: center;
-}
-
-.register-link {
-  color: #1976d2;
-  transition: all 0.3s;
-  font-weight: 500;
-}
-
-.register-link:hover {
-  color: #2196f3;
-  text-decoration: underline;
-}
-
-@media screen and (max-width: 480px) {
-  .login-content {
-    padding: 0 15px;
-  }
-  
-  h2 {
-    font-size: 24px;
-  }
-  
-  .login-button {
-    padding: 10px;
-  }
 }
 </style>

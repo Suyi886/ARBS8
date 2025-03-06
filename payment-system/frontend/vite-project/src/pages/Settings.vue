@@ -305,7 +305,7 @@
         </div>
         
         <div class="user-table-actions">
-          <el-button type="primary">
+          <el-button type="primary" @click="showAddUserDialog">
             <el-icon><Plus /></el-icon>
             添加用户
           </el-button>
@@ -378,6 +378,56 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+    
+    <!-- 添加用户对话框 -->
+    <el-dialog
+      v-model="addUserDialogVisible"
+      title="添加新用户"
+      width="500px"
+    >
+      <el-form 
+        :model="newUser" 
+        :rules="userFormRules" 
+        ref="userFormRef" 
+        label-width="100px"
+      >
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="newUser.username" placeholder="请输入用户名" />
+        </el-form-item>
+        
+        <el-form-item label="密码" prop="password">
+          <el-input 
+            v-model="newUser.password" 
+            type="password" 
+            show-password 
+            placeholder="请输入密码" 
+          />
+        </el-form-item>
+        
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input 
+            v-model="newUser.confirmPassword" 
+            type="password" 
+            show-password 
+            placeholder="请再次输入密码" 
+          />
+        </el-form-item>
+        
+        <el-form-item label="用户角色" prop="role">
+          <el-radio-group v-model="newUser.role">
+            <el-radio label="client">客户</el-radio>
+            <el-radio label="admin">管理员</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="addUserDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="addUser" :loading="addingUser">创建用户</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -385,6 +435,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
+import type { FormInstance } from 'element-plus'
 
 // 活动标签页
 const activeTab = ref('system')
@@ -488,6 +539,103 @@ const filteredUsers = computed(() => {
     user.id.toString().includes(query)
   )
 })
+
+// 用户表单
+const addUserDialogVisible = ref(false)
+const userFormRef = ref<FormInstance>()
+const addingUser = ref(false)
+
+const newUser = reactive({
+  username: '',
+  password: '',
+  confirmPassword: '',
+  role: 'client'
+})
+
+// 验证两次输入密码是否一致
+const validatePass = (rule: any, value: string, callback: any) => {
+  if (value === '') {
+    callback(new Error('请再次输入密码'))
+  } else if (value !== newUser.password) {
+    callback(new Error('两次输入密码不一致'))
+  } else {
+    callback()
+  }
+}
+
+const userFormRules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 20, message: '长度在 3 到 20 个字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度至少为 6 个字符', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, validator: validatePass, trigger: 'blur' }
+  ],
+  role: [
+    { required: true, message: '请选择用户角色', trigger: 'change' }
+  ]
+}
+
+// 显示添加用户对话框
+const showAddUserDialog = () => {
+  // 重置表单
+  Object.assign(newUser, {
+    username: '',
+    password: '',
+    confirmPassword: '',
+    role: 'client'
+  })
+  
+  addUserDialogVisible.value = true
+}
+
+// 添加新用户
+const addUser = async () => {
+  if (!userFormRef.value) return
+  
+  try {
+    await userFormRef.value.validate()
+    
+    addingUser.value = true
+    
+    // 模拟API调用
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // 检查用户名是否已存在
+    const userExists = users.value.some(user => user.username === newUser.username)
+    if (userExists) {
+      ElMessage.error(`用户名 "${newUser.username}" 已存在`)
+      addingUser.value = false
+      return
+    }
+    
+    // 生成新用户ID
+    const maxId = Math.max(...users.value.map(user => user.id))
+    const newId = maxId + 1
+    
+    // 添加新用户到列表
+    users.value.push({
+      id: newId,
+      username: newUser.username,
+      role: newUser.role,
+      status: 'active',
+      createdAt: new Date().toISOString().split('T')[0]
+    })
+    
+    addUserDialogVisible.value = false
+    ElMessage.success('用户创建成功')
+    
+  } catch (error) {
+    console.error('添加用户失败:', error)
+    ElMessage.error('添加用户失败，请检查表单信息')
+  } finally {
+    addingUser.value = false
+  }
+}
 
 // 生命周期钩子
 onMounted(() => {
