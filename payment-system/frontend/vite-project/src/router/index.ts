@@ -2,6 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { ElMessage } from 'element-plus'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -57,8 +58,7 @@ const routes: RouteRecordRaw[] = [
     path: '/client',
     component: () => import('@/pages/client/ClientLayout.vue'),
     meta: { 
-      requiresAuth: true,
-      requiresClient: true
+      requiresAuth: true
     },
     children: [
       {
@@ -117,7 +117,7 @@ const router = createRouter({
   routes
 })
 
-// 增强路由守卫逻辑
+// 修改路由守卫逻辑
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
   const isLoggedIn = userStore.isLoggedIn
@@ -129,19 +129,14 @@ router.beforeEach((to, from, next) => {
     return
   }
   
-  // 需要管理员权限的页面
+  // 需要管理员权限的页面，非管理员不可访问
   if (to.meta.requiresAdmin && !isAdmin) {
+    ElMessage.error('您没有权限访问该页面')
     next('/client')
     return
   }
   
-  // 需要客户权限的页面
-  if (to.meta.requiresClient && isAdmin) {
-    next('/admin')
-    return
-  }
-  
-  // 需要认证的页面
+  // 需要认证的页面，未登录用户重定向到登录页
   if (to.meta.requiresAuth && !isLoggedIn) {
     next('/login')
     return

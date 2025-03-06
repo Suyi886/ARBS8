@@ -111,9 +111,9 @@ const userInfo = computed(() => userStore.userInfo) // 使用计算属性获取�
 
 // 菜单选择处理
 const handleMenuSelect = (index: string) => {
-  if (index === 'dashboard') router.push('/dashboard')
-  else if (index === 'orders') router.push('/orders')
-  else if (index === 'settings') router.push('/settings')
+  if (index === 'dashboard') router.push('/admin')
+  else if (index === 'orders') router.push('/admin/orders')
+  else if (index === 'settings') router.push('/admin/settings')
 }
 
 // 下拉菜单命令处理
