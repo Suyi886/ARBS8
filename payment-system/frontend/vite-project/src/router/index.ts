@@ -1,50 +1,112 @@
 // src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/login' // 添加重定向到登录页
+    redirect: '/login'
   },
   {
     path: '/login',
     name: 'Login', 
     component: () => import('@/pages/Login.vue'),
-    meta: { requiresAuth: false } // 明确标记不需要认证
+    meta: { requiresAuth: false }
   },
   {
-    path: '/register', // 新增注册路由
+    path: '/register',
     name: 'Register',
     component: () => import('@/pages/Register.vue'),
     meta: { requiresAuth: false }
   },
   {
-    path: '/dashboard',
-    name: 'Dashboard',
+    path: '/home',
+    name: 'Home',
+    component: () => import('@/pages/Home.vue'),
+    meta: { requiresAuth: false }
+  },
+  // 管理员后台路由
+  {
+    path: '/admin',
     component: () => import('@/pages/DashboardLayout.vue'),
-    meta: { requiresAuth: true }, // 需要认证
+    meta: { 
+      requiresAuth: true,
+      requiresAdmin: true
+    },
     children: [
       {
         path: '',
-        name: 'DashboardHome',
+        name: 'AdminDashboard',
         component: () => import('@/pages/Dashboard.vue')
       },
       {
-        path: 'orders',  // 订单管理页面
-        name: 'Orders',
-        component: () => import('@/pages/Orders.vue')
+        path: 'orders',
+        name: 'AdminOrders',
+        component: () => import('@/pages/admin/OrderManagement.vue')
       },
       {
-        path: 'settings',  // 设置页面
-        name: 'Settings',
+        path: 'settings',
+        name: 'AdminSettings',
         component: () => import('@/pages/Settings.vue')
       }
-      // 可以在这里添加更多dashboard子路由
     ]
   },
+  // 客户前台路由
   {
-    path: '/:pathMatch(.*)*', // 处理404路由
+    path: '/client',
+    component: () => import('@/pages/client/ClientLayout.vue'),
+    meta: { 
+      requiresAuth: true,
+      requiresClient: true
+    },
+    children: [
+      {
+        path: '',
+        name: 'ClientDashboard',
+        component: () => import('@/pages/client/ClientDashboard.vue')
+      },
+      {
+        path: 'orders',
+        name: 'ClientOrders',
+        component: () => import('@/pages/client/OrderStatus.vue')
+      },
+      {
+        path: 'recharge',
+        name: 'ClientRecharge',
+        component: () => import('@/pages/client/Recharge.vue')
+      },
+      {
+        path: 'withdraw',
+        name: 'ClientWithdraw',
+        component: () => import('@/pages/client/Withdraw.vue')
+      },
+      {
+        path: 'messages',
+        name: 'ClientMessages',
+        component: () => import('@/pages/client/Messages.vue')
+      },
+      {
+        path: 'settings',
+        name: 'ClientSettings',
+        component: { 
+          template: '<div class="page-container"><h2>账户设置</h2><p>该功能正在开发中...</p></div>' 
+        }
+      }
+    ]
+  },
+  // 原始路由保留，但重定向到新的角色路由
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    redirect: (to) => {
+      const userStore = useUserStore()
+      return userStore.isAdmin ? '/admin' : '/client'
+    },
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/pages/NotFound.vue')
   }
@@ -57,11 +119,25 @@ const router = createRouter({
 
 // 增强路由守卫逻辑
 router.beforeEach((to, from, next) => {
-  const isLoggedIn = !!localStorage.getItem('token')
+  const userStore = useUserStore()
+  const isLoggedIn = userStore.isLoggedIn
+  const isAdmin = userStore.isAdmin
   
-  // 已登录用户访问登录/注册页面时重定向到首页
+  // 已登录用户访问登录/注册页面时重定向到相应的首页
   if (isLoggedIn && (to.path === '/login' || to.path === '/register')) {
-    next('/dashboard')
+    next(isAdmin ? '/admin' : '/client')
+    return
+  }
+  
+  // 需要管理员权限的页面
+  if (to.meta.requiresAdmin && !isAdmin) {
+    next('/client')
+    return
+  }
+  
+  // 需要客户权限的页面
+  if (to.meta.requiresClient && isAdmin) {
+    next('/admin')
     return
   }
   

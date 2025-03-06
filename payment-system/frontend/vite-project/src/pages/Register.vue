@@ -47,6 +47,13 @@
               />
             </el-form-item>
             
+            <el-form-item prop="role">
+              <el-radio-group v-model="registerForm.role" class="role-selection">
+                <el-radio label="client">注册为客户</el-radio>
+                <el-radio label="admin">注册为管理员</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            
             <el-form-item>
               <el-button 
                 type="primary" 
@@ -86,7 +93,8 @@
   const registerForm = reactive({
     username: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'client' // 默认选择客户角色
   })
   
   const validatePass = (rule: any, value: string, callback: any) => {
@@ -111,6 +119,9 @@
     confirmPassword: [
       { required: true, message: '请确认密码', trigger: 'blur' },
       { validator: validatePass, trigger: 'blur' }
+    ],
+    role: [
+      { required: true, message: '请选择角色', trigger: 'change' }
     ]
   }
   
@@ -232,6 +243,13 @@
   
   .custom-input :deep(.el-input__wrapper:hover) {
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .role-selection {
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    margin: 10px 0;
   }
   
   .register-button {

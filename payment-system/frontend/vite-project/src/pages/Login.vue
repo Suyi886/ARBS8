@@ -37,6 +37,13 @@
             />
           </el-form-item>
           
+          <el-form-item prop="role">
+            <el-radio-group v-model="loginForm.role" class="role-selection">
+              <el-radio label="client">我是客户</el-radio>
+              <el-radio label="admin">我是管理员</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          
           <el-form-item>
             <el-button 
               type="primary" 
@@ -77,12 +84,14 @@ const loading = ref(false)
 
 const loginForm = reactive({
   username: '',
-  password: ''
+  password: '',
+  role: 'client' // 默认选择客户角色
 })
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  role: [{ required: true, message: '请选择角色', trigger: 'change' }]
 }
 
 const handleLogin = async () => {
@@ -112,12 +121,18 @@ const handleLogin = async () => {
     const userInfo = {
       id: generateId(loginForm.username),
       username: loginForm.username,
-      role: 'admin'
+      role: loginForm.role // 使用选择的角色
     }
     userStore.setUserInfo(userInfo)
     
     ElMessage.success('登录成功')
-    router.push('/dashboard')
+    
+    // 根据角色跳转到不同的页面
+    if (loginForm.role === 'admin') {
+      router.push('/admin')
+    } else {
+      router.push('/client')
+    }
     
   } catch (error) {
     console.error('登录失败:', error)
@@ -127,7 +142,7 @@ const handleLogin = async () => {
   }
 }
 
-// 新增跳转注册页面方法
+// 跳转注册页面方法
 const goToRegister = () => {
   router.push('/register')
 }
@@ -225,6 +240,13 @@ h2 {
 
 .custom-input :deep(.el-input__wrapper:hover) {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.role-selection {
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  margin: 10px 0;
 }
 
 .login-button {
