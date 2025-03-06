@@ -414,10 +414,46 @@ const submitWithdraw = async () => {
       });
     }
     
+    // 直接将订单保存到localStorage，供管理端读取
+    // 这是一个临时解决方案，实际中应该通过WebSocket和后端数据库处理
+    const storedOrders = localStorage.getItem('realOrders');
+    let realOrders = storedOrders ? JSON.parse(storedOrders) : [];
+    
+    // 确保orders是数组
+    if (!Array.isArray(realOrders)) {
+      realOrders = [];
+    }
+    
+    // 添加新订单
+    realOrders.push({
+      id: Date.now(),
+      orderNumber: generatedOrderNumber.value,
+      type: 'withdraw',
+      amount: withdrawForm.amount.toFixed(2),
+      customerName: '当前用户',
+      customerAccount: 'customer@example.com',
+      status: 'withdraw_pending',
+      remark: withdrawForm.remark || '用户提现申请',
+      createdAt: new Date().toISOString().split('T')[0],
+      updatedAt: new Date().toISOString().split('T')[0],
+      updatedBy: '客户'
+    });
+    
+    // 保存回localStorage
+    localStorage.setItem('realOrders', JSON.stringify(realOrders));
+    
+    // 添加到最近的提现记录
+    recentWithdraws.value.unshift({
+      orderNumber: generatedOrderNumber.value,
+      amount: withdrawForm.amount.toFixed(2),
+      createdAt: new Date(),
+      status: 'withdraw_pending'
+    });
+    
     // 进入下一步
     activeStep.value = 2;
     
-    ElMessage.success('提现申请提交成功');
+    ElMessage.success('提现申请提交成功，已保存到系统中');
   } catch (error) {
     console.error('提交提现申请失败:', error);
     ElMessage.error('提交提现申请失败，请重试');

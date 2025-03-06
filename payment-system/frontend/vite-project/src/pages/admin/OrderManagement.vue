@@ -3,6 +3,10 @@
     <div class="page-header">
       <h2>订单管理</h2>
       <div class="header-actions">
+        <el-button type="success" @click="addTestOrder">
+          <el-icon><Plus /></el-icon>
+          添加测试订单
+        </el-button>
         <el-button type="primary" @click="exportData">
           <el-icon><Download /></el-icon>
           导出数据
@@ -14,149 +18,247 @@
       </div>
     </div>
     
-    <div class="filter-section">
-      <el-form :inline="true" class="filter-form">
-        <el-form-item label="订单类型">
-          <el-select v-model="filters.orderType" placeholder="选择订单类型">
-            <el-option label="充值订单" value="recharge" />
-            <el-option label="提现订单" value="withdraw" />
-          </el-select>
-        </el-form-item>
+    <!-- 订单类型选项卡 -->
+    <el-tabs v-model="activeOrderTab" class="order-tabs" @tab-change="handleTabChange">
+      <el-tab-pane label="充值订单" name="recharge">
+        <div class="filter-section">
+          <el-form :inline="true" class="filter-form">
+            <el-form-item label="订单状态">
+              <el-select v-model="filters.status" placeholder="选择状态">
+                <el-option label="全部" value="" />
+                <el-option v-for="status in getStatusOptions" :key="status.value" :label="status.label" :value="status.value" />
+              </el-select>
+            </el-form-item>
+            
+            <el-form-item label="订单号">
+              <el-input v-model="filters.orderNumber" placeholder="输入订单号" clearable />
+            </el-form-item>
+            
+            <el-form-item label="时间范围">
+              <el-date-picker
+                v-model="filters.dateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+              />
+            </el-form-item>
+            
+            <el-form-item>
+              <el-button type="primary" @click="handleSearch">
+                <el-icon><Search /></el-icon>
+                搜索
+              </el-button>
+              <el-button @click="resetFilters">
+                <el-icon><Delete /></el-icon>
+                重置
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </div>
         
-        <el-form-item label="订单状态">
-          <el-select v-model="filters.status" placeholder="选择状态">
-            <el-option label="全部" value="" />
-            <el-option v-for="status in getStatusOptions" :key="status.value" :label="status.label" :value="status.value" />
-          </el-select>
-        </el-form-item>
+        <el-table
+          v-loading="loading"
+          :data="filteredOrders"
+          border
+          stripe
+          style="width: 100%"
+          max-height="650"
+        >
+          <el-table-column prop="orderNumber" label="订单号" width="180" />
+          <el-table-column prop="amount" label="金额" width="120">
+            <template #default="scope">
+              <span>{{ scope.row.amount }} 元</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="customerName" label="客户名称" width="150" />
+          <el-table-column prop="createdAt" label="创建时间" width="180" />
+          <el-table-column prop="status" label="状态" width="120">
+            <template #default="scope">
+              <el-tag :type="getStatusType(scope.row.status)">
+                {{ getStatusLabel(scope.row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="remark" label="备注" min-width="200" />
+          <el-table-column fixed="right" label="操作" width="200">
+            <template #default="scope">
+              <el-button-group>
+                <el-button 
+                  size="small" 
+                  type="primary" 
+                  @click="openStatusChangeDialog(scope.row)"
+                >
+                  修改状态
+                </el-button>
+                <el-button 
+                  size="small" 
+                  type="info" 
+                  @click="viewOrderDetails(scope.row)"
+                >
+                  详情
+                </el-button>
+              </el-button-group>
+            </template>
+          </el-table-column>
+        </el-table>
         
-        <el-form-item label="订单号">
-          <el-input v-model="filters.orderNumber" placeholder="输入订单号" clearable />
-        </el-form-item>
-        
-        <el-form-item label="时间范围">
-          <el-date-picker
-            v-model="filters.dateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
+        <div class="pagination-container">
+          <el-pagination
+            v-model:currentPage="currentPage"
+            v-model:page-size="pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="totalFilteredOrders"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
           />
-        </el-form-item>
+        </div>
+      </el-tab-pane>
+      
+      <el-tab-pane label="提现订单" name="withdraw">
+        <div class="filter-section">
+          <el-form :inline="true" class="filter-form">
+            <el-form-item label="订单状态">
+              <el-select v-model="filters.status" placeholder="选择状态">
+                <el-option label="全部" value="" />
+                <el-option v-for="status in getStatusOptions" :key="status.value" :label="status.label" :value="status.value" />
+              </el-select>
+            </el-form-item>
+            
+            <el-form-item label="订单号">
+              <el-input v-model="filters.orderNumber" placeholder="输入订单号" clearable />
+            </el-form-item>
+            
+            <el-form-item label="时间范围">
+              <el-date-picker
+                v-model="filters.dateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+              />
+            </el-form-item>
+            
+            <el-form-item>
+              <el-button type="primary" @click="handleSearch">
+                <el-icon><Search /></el-icon>
+                搜索
+              </el-button>
+              <el-button @click="resetFilters">
+                <el-icon><Delete /></el-icon>
+                重置
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </div>
         
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon>
-            搜索
-          </el-button>
-          <el-button @click="resetFilters">
-            <el-icon><Delete /></el-icon>
-            重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </div>
+        <el-table
+          v-loading="loading"
+          :data="filteredOrders"
+          border
+          stripe
+          style="width: 100%"
+          max-height="650"
+        >
+          <el-table-column prop="orderNumber" label="订单号" width="180" />
+          <el-table-column prop="amount" label="金额" width="120">
+            <template #default="scope">
+              <span>{{ scope.row.amount }} 元</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="customerName" label="客户名称" width="150" />
+          <el-table-column prop="createdAt" label="创建时间" width="180" />
+          <el-table-column prop="status" label="状态" width="120">
+            <template #default="scope">
+              <el-tag :type="getStatusType(scope.row.status)">
+                {{ getStatusLabel(scope.row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="remark" label="备注" min-width="200" />
+          <el-table-column fixed="right" label="操作" width="200">
+            <template #default="scope">
+              <el-button-group>
+                <el-button 
+                  size="small" 
+                  type="primary" 
+                  @click="openStatusChangeDialog(scope.row)"
+                >
+                  修改状态
+                </el-button>
+                <el-button 
+                  size="small" 
+                  type="info" 
+                  @click="viewOrderDetails(scope.row)"
+                >
+                  详情
+                </el-button>
+              </el-button-group>
+            </template>
+          </el-table-column>
+        </el-table>
+        
+        <div class="pagination-container">
+          <el-pagination
+            v-model:currentPage="currentPage"
+            v-model:page-size="pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="totalFilteredOrders"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
+      </el-tab-pane>
+    </el-tabs>
     
-    <el-table
-      v-loading="loading"
-      :data="orders"
-      border
-      stripe
-      style="width: 100%"
-      max-height="650"
-    >
-      <el-table-column prop="orderNumber" label="订单号" width="180" />
-      <el-table-column prop="amount" label="金额" width="120">
-        <template #default="scope">
-          <span>{{ scope.row.amount }} 元</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="customerName" label="客户名称" width="150" />
-      <el-table-column prop="createdAt" label="创建时间" width="180" />
-      <el-table-column prop="status" label="状态" width="120">
-        <template #default="scope">
-          <el-tag :type="getStatusType(scope.row.status)">
-            {{ getStatusLabel(scope.row.status) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="remark" label="备注" min-width="200" />
-      <el-table-column fixed="right" label="操作" width="200">
-        <template #default="scope">
-          <el-button-group>
-            <el-button 
-              size="small" 
-              type="primary" 
-              @click="openStatusChangeDialog(scope.row)"
-            >
-              修改状态
-            </el-button>
-            <el-button 
-              size="small" 
-              type="info" 
-              @click="viewOrderDetails(scope.row)"
-            >
-              查看详情
-            </el-button>
-          </el-button-group>
-        </template>
-      </el-table-column>
-    </el-table>
-    
-    <div class="pagination-container">
-      <el-pagination
-        background
-        layout="total, sizes, prev, pager, next, jumper"
-        :total="totalOrders"
-        :page-size="pageSize"
-        :current-page="currentPage"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
-    </div>
-    
-    <!-- 修改状态对话框 -->
+    <!-- 状态修改对话框 -->
     <el-dialog
       v-model="statusDialog.visible"
-      title="修改订单状态"
+      :title="`修改订单状态 - ${statusDialog.orderNumber}`"
       width="500px"
     >
-      <div class="status-form">
-        <el-form label-width="100px">
-          <el-form-item label="当前状态">
-            <el-tag :type="getStatusType(statusDialog.currentStatus)">
-              {{ getStatusLabel(statusDialog.currentStatus) }}
-            </el-tag>
-          </el-form-item>
-          
-          <el-form-item label="新状态">
-            <el-select v-model="statusDialog.newStatus" placeholder="选择新状态">
-              <el-option 
-                v-for="status in getStatusOptions" 
-                :key="status.value" 
-                :label="status.label" 
-                :value="status.value" 
-              />
-            </el-select>
-          </el-form-item>
-          
-          <el-form-item label="备注">
-            <el-input
-              v-model="statusDialog.remark"
-              type="textarea"
-              rows="3"
-              placeholder="请输入备注信息"
+      <el-form label-width="100px">
+        <el-form-item label="当前状态">
+          <el-tag :type="getStatusType(statusDialog.currentStatus)">
+            {{ getStatusLabel(statusDialog.currentStatus) }}
+          </el-tag>
+        </el-form-item>
+        
+        <el-form-item label="新状态">
+          <el-select v-model="statusDialog.newStatus" placeholder="选择新状态">
+            <el-option
+              v-for="status in getAvailableStatusOptions(statusDialog.currentStatus)"
+              :key="status.value"
+              :label="status.label"
+              :value="status.value"
             />
-          </el-form-item>
-        </el-form>
-      </div>
+          </el-select>
+        </el-form-item>
+        
+        <el-form-item label="备注">
+          <el-input 
+            v-model="statusDialog.remark" 
+            type="textarea" 
+            rows="3" 
+            placeholder="请输入状态变更的原因或备注信息"
+          />
+        </el-form-item>
+      </el-form>
       
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="statusDialog.visible = false">取消</el-button>
-          <el-button type="primary" @click="handleStatusChange" :loading="statusDialog.loading">
+          <el-button 
+            type="primary" 
+            @click="confirmStatusChange" 
+            :loading="statusDialog.loading"
+          >
             确认修改
           </el-button>
         </span>
@@ -166,29 +268,38 @@
     <!-- 订单详情对话框 -->
     <el-dialog
       v-model="detailDialog.visible"
-      title="订单详情"
-      width="600px"
+      :title="`订单详情 - ${detailDialog.order?.orderNumber}`"
+      width="700px"
     >
-      <el-descriptions border :column="1" direction="vertical">
+      <el-descriptions :column="2" border>
         <el-descriptions-item label="订单号">{{ detailDialog.order?.orderNumber }}</el-descriptions-item>
-        <el-descriptions-item label="订单类型">{{ detailDialog.order?.type === 'recharge' ? '充值订单' : '提现订单' }}</el-descriptions-item>
+        <el-descriptions-item label="订单类型">
+          {{ detailDialog.order?.type === 'recharge' ? '充值' : '提现' }}
+        </el-descriptions-item>
         <el-descriptions-item label="金额">{{ detailDialog.order?.amount }} 元</el-descriptions-item>
-        <el-descriptions-item label="客户名称">{{ detailDialog.order?.customerName }}</el-descriptions-item>
-        <el-descriptions-item label="客户账号">{{ detailDialog.order?.customerAccount }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ detailDialog.order?.createdAt }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ detailDialog.order?.updatedAt }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(detailDialog.order?.status)">
             {{ getStatusLabel(detailDialog.order?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="操作人">{{ detailDialog.order?.updatedBy }}</el-descriptions-item>
-        <el-descriptions-item label="备注">{{ detailDialog.order?.remark || '无' }}</el-descriptions-item>
+        <el-descriptions-item label="客户名称">{{ detailDialog.order?.customerName }}</el-descriptions-item>
+        <el-descriptions-item label="客户账号">{{ detailDialog.order?.customerAccount }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ detailDialog.order?.createdAt }}</el-descriptions-item>
+        <el-descriptions-item label="最后更新">{{ detailDialog.order?.updatedAt }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">
+          {{ detailDialog.order?.remark || '无' }}
+        </el-descriptions-item>
       </el-descriptions>
       
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailDialog.visible = false">关闭</el-button>
+          <el-button 
+            type="primary" 
+            @click="openStatusChangeDialog(detailDialog.order)"
+          >
+            修改状态
+          </el-button>
         </span>
       </template>
     </el-dialog>
@@ -201,7 +312,8 @@ import {
   Download, 
   Refresh, 
   Search, 
-  Delete
+  Delete,
+  Plus
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { webSocketService } from '@/utils/websocket'
@@ -212,48 +324,53 @@ const mockFetchOrders = async (params: any) => {
   // 模拟API延迟
   await new Promise(resolve => setTimeout(resolve, 500))
   
-  // 模拟数据
-  const statusMap: Record<string, string> = {
-    'recharge_pending': '充值待处理',
-    'recharge_processing': '充值处理中',
-    'recharge_completed': '充值已完成',
-    'recharge_failed': '充值失败',
-    'withdraw_pending': '提现待处理',
-    'withdraw_processing': '提现处理中',
-    'withdraw_completed': '提现已完成',
-    'withdraw_failed': '提现失败',
+  // 获取本地存储的真实订单数据
+  const storedOrders = localStorage.getItem('realOrders')
+  let realOrders = storedOrders ? JSON.parse(storedOrders) : []
+  
+  // 如果没有真实订单数据，创建一个空数组
+  if (!Array.isArray(realOrders)) {
+    realOrders = []
   }
   
-  // 根据过滤条件生成随机数据
-  const mockData = Array.from({ length: 20 }, (_, i) => {
-    const isRecharge = params.orderType === 'recharge' || (params.orderType === '' && Math.random() > 0.5)
-    const type = isRecharge ? 'recharge' : 'withdraw'
-    const statusPrefix = isRecharge ? 'recharge_' : 'withdraw_'
-    const statusOptions = ['pending', 'processing', 'completed', 'failed']
-    const statusSuffix = params.status && params.status.endsWith(params.status) 
-      ? params.status.split('_')[1] 
-      : statusOptions[Math.floor(Math.random() * statusOptions.length)]
+  // 根据订单类型过滤
+  let filteredData = realOrders.filter((order: {
+    type: string,
+    orderNumber: string,
+    status: string,
+    createdAt: string
+  }) => {
+    const typeMatch = params.orderType ? order.type === params.orderType : true
     
-    return {
-      id: i + 1,
-      orderNumber: `${type.charAt(0).toUpperCase()}${new Date().getFullYear()}${String(1000 + i).padStart(4, '0')}`,
-      type,
-      amount: (Math.random() * 1000 + 100).toFixed(2),
-      customerName: `客户${i + 1}`,
-      customerAccount: `account${i + 1}@example.com`,
-      status: `${statusPrefix}${statusSuffix}`,
-      remark: Math.random() > 0.7 ? `这是订单${i + 1}的备注信息` : '',
-      createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0],
-      updatedBy: '管理员'
+    // 按订单号过滤
+    const orderNumberMatch = params.orderNumber 
+      ? order.orderNumber.includes(params.orderNumber)
+      : true
+      
+    // 按状态过滤
+    const statusMatch = params.status 
+      ? order.status === params.status
+      : true
+      
+    // 按日期范围过滤
+    let dateMatch = true
+    if (params.dateRange && params.dateRange.length === 2) {
+      const orderDate = new Date(order.createdAt)
+      const startDate = new Date(params.dateRange[0])
+      const endDate = new Date(params.dateRange[1])
+      endDate.setDate(endDate.getDate() + 1) // 包含结束日期
+      
+      dateMatch = orderDate >= startDate && orderDate < endDate
     }
+    
+    return typeMatch && orderNumberMatch && statusMatch && dateMatch
   })
   
-  // 如果有订单号搜索，只返回匹配的订单
-  const filteredData = params.orderNumber 
-    ? mockData.filter(order => order.orderNumber.includes(params.orderNumber))
-    : mockData
-    
+  // 如果没有真实订单数据，显示提示
+  if (filteredData.length === 0) {
+    ElMessage.info('没有找到符合条件的订单数据，请尝试提交新订单或检查筛选条件')
+  }
+  
   // 模拟分页
   const start = (params.page - 1) * params.pageSize
   const end = start + params.pageSize
@@ -296,6 +413,7 @@ const orders = ref<any[]>([])
 const totalOrders = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
+const activeOrderTab = ref('recharge') // 当前选中的订单类型选项卡
 
 // 过滤条件
 const filters = reactive({
@@ -326,20 +444,93 @@ const detailDialog = reactive({
 // WebSocket事件处理
 const handleWebSocketEvent = (event: any) => {
   if ('orderNumber' in event) {
-    // 如果是订单状态变更事件，自动刷新订单列表
+    // 如果是订单状态变更事件
     if ('oldStatus' in event) {
-      refreshData()
+      // 更新本地订单状态
+      updateRealOrderStatus(event)
     }
-    // 如果是新订单事件，也刷新列表
+    // 如果是新订单事件，添加到真实订单列表
     else {
-      refreshData()
+      addRealOrder(event)
     }
+    // 刷新订单列表
+    refreshData()
+  }
+}
+
+// 添加真实订单到本地存储
+const addRealOrder = (orderData: any) => {
+  const storedOrders = localStorage.getItem('realOrders')
+  let realOrders = storedOrders ? JSON.parse(storedOrders) : []
+  
+  // 确保是数组
+  if (!Array.isArray(realOrders)) {
+    realOrders = []
+  }
+  
+  // 生成唯一ID
+  const newId = realOrders.length > 0 
+    ? Math.max(...realOrders.map((o: {id: number}) => o.id)) + 1 
+    : 1
+  
+  // 创建新订单对象
+  const newOrder = {
+    id: newId,
+    orderNumber: orderData.orderNumber,
+    type: orderData.type || 'withdraw', // 默认为提现订单
+    amount: orderData.amount || '500.00',
+    customerName: orderData.customerName || '客户',
+    customerAccount: orderData.customerAccount || 'account@example.com',
+    status: orderData.status || 'withdraw_pending',
+    remark: orderData.remark || '',
+    createdAt: orderData.timestamp || new Date().toISOString().split('T')[0],
+    updatedAt: new Date().toISOString().split('T')[0],
+    updatedBy: '客户'
+  }
+  
+  // 添加到订单列表
+  realOrders.push(newOrder)
+  
+  // 保存到本地存储
+  localStorage.setItem('realOrders', JSON.stringify(realOrders))
+  
+  // 显示通知
+  ElMessage.success(`收到新的${newOrder.type === 'recharge' ? '充值' : '提现'}订单: ${newOrder.orderNumber}`)
+}
+
+// 更新本地订单状态
+const updateRealOrderStatus = (event: any) => {
+  const storedOrders = localStorage.getItem('realOrders')
+  let realOrders = storedOrders ? JSON.parse(storedOrders) : []
+  
+  // 确保是数组
+  if (!Array.isArray(realOrders)) {
+    realOrders = []
+    return
+  }
+  
+  // 查找并更新订单
+  const orderIndex = realOrders.findIndex((order: any) => 
+    order.orderNumber === event.orderNumber
+  )
+  
+  if (orderIndex !== -1) {
+    realOrders[orderIndex].status = event.newStatus
+    realOrders[orderIndex].remark = event.remark || realOrders[orderIndex].remark
+    realOrders[orderIndex].updatedAt = event.timestamp || new Date().toISOString().split('T')[0]
+    realOrders[orderIndex].updatedBy = event.updatedBy || '系统'
+    
+    // 保存到本地存储
+    localStorage.setItem('realOrders', JSON.stringify(realOrders))
+    
+    // 显示通知
+    ElMessage.success(`订单 ${event.orderNumber} 状态已更新为: ${getStatusLabel(event.newStatus)}`)
   }
 }
 
 // 计算属性：根据订单类型获取状态选项
 const getStatusOptions = computed(() => {
-  if (filters.orderType === 'recharge') {
+  if (activeOrderTab.value === 'recharge') {
     return [
       { label: '充值待处理', value: 'recharge_pending' },
       { label: '充值处理中', value: 'recharge_processing' },
@@ -355,6 +546,30 @@ const getStatusOptions = computed(() => {
     ]
   }
 })
+
+// 计算属性：当前筛选后的订单
+const filteredOrders = computed(() => {
+  return orders.value.filter(order => 
+    order.type === activeOrderTab.value &&
+    (filters.status ? order.status === filters.status : true)
+  )
+})
+
+// 计算属性：当前筛选后的订单总数
+const totalFilteredOrders = computed(() => {
+  const filtered = orders.value.filter(order => 
+    order.type === activeOrderTab.value &&
+    (filters.status ? order.status === filters.status : true)
+  )
+  return filtered.length
+})
+
+// 处理选项卡切换
+const handleTabChange = (tab: string) => {
+  filters.orderType = tab
+  filters.status = '' // 重置状态筛选
+  fetchOrders()
+}
 
 // 根据状态获取显示标签
 const getStatusLabel = (status: string) => {
@@ -380,12 +595,36 @@ const getStatusType = (status: string) => {
   return 'info'
 }
 
+// 获取可用的状态选项
+const getAvailableStatusOptions = (currentStatus: string) => {
+  const type = currentStatus.split('_')[0]
+  
+  if (type === 'recharge') {
+    return [
+      { label: '充值处理中', value: 'recharge_processing' },
+      { label: '充值已完成', value: 'recharge_completed' },
+      { label: '充值失败', value: 'recharge_failed' }
+    ]
+  } else {
+    return [
+      { label: '提现处理中', value: 'withdraw_processing' },
+      { label: '提现已完成', value: 'withdraw_completed' },
+      { label: '提现失败', value: 'withdraw_failed' }
+    ]
+  }
+}
+
 // 生命周期钩子
 onMounted(() => {
   fetchOrders()
   
   // 添加WebSocket事件监听
   webSocketService.addEventListener(handleWebSocketEvent)
+  
+  // 测试：创建一个默认的提现测试订单
+  if (!localStorage.getItem('realOrders')) {
+    createTestWithdrawOrder()
+  }
 })
 
 onUnmounted(() => {
@@ -400,7 +639,7 @@ const fetchOrders = async () => {
     const { orders: data, total } = await mockFetchOrders({
       page: currentPage.value,
       pageSize: pageSize.value,
-      orderType: filters.orderType,
+      orderType: activeOrderTab.value,
       status: filters.status,
       orderNumber: filters.orderNumber,
       dateRange: filters.dateRange
@@ -428,7 +667,6 @@ const handleSearch = () => {
 
 // 重置过滤条件
 const resetFilters = () => {
-  filters.orderType = 'recharge'
   filters.status = ''
   filters.orderNumber = ''
   filters.dateRange = []
@@ -452,19 +690,20 @@ const openStatusChangeDialog = (row: any) => {
   statusDialog.orderNumber = row.orderNumber
   statusDialog.type = row.type
   statusDialog.currentStatus = row.status
-  statusDialog.newStatus = ''
-  statusDialog.remark = row.remark || ''
+  statusDialog.newStatus = '' // 重置选择
+  statusDialog.remark = ''
   statusDialog.visible = true
 }
 
-// 处理状态修改
-const handleStatusChange = async () => {
+// 确认修改状态
+const confirmStatusChange = async () => {
   if (!statusDialog.newStatus) {
     ElMessage.warning('请选择新状态')
     return
   }
   
   statusDialog.loading = true
+  
   try {
     const result = await mockUpdateOrderStatus(
       statusDialog.orderId,
@@ -476,13 +715,19 @@ const handleStatusChange = async () => {
     )
     
     if (result.success) {
-      ElMessage.success('订单状态更新成功')
+      ElMessage.success('状态修改成功')
       statusDialog.visible = false
-      fetchOrders() // 刷新订单列表
+      
+      // 更新本地数据
+      const index = orders.value.findIndex(o => o.id === statusDialog.orderId)
+      if (index !== -1) {
+        orders.value[index].status = statusDialog.newStatus
+        orders.value[index].remark = statusDialog.remark || orders.value[index].remark
+      }
     }
   } catch (error) {
-    console.error('更新状态失败:', error)
-    ElMessage.error('更新状态失败，请重试')
+    console.error('修改状态失败:', error)
+    ElMessage.error('修改状态失败，请重试')
   } finally {
     statusDialog.loading = false
   }
@@ -490,26 +735,76 @@ const handleStatusChange = async () => {
 
 // 查看订单详情
 const viewOrderDetails = (row: any) => {
-  detailDialog.order = { ...row }
+  detailDialog.order = row
   detailDialog.visible = true
 }
 
 // 导出数据
 const exportData = () => {
-  ElMessageBox.confirm(
-    '确定要导出当前筛选条件下的所有订单数据吗？',
-    '导出数据',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'info'
+  ElMessage.success('导出功能开发中...')
+}
+
+// 创建测试提现订单
+const createTestWithdrawOrder = () => {
+  // 准备模拟数据
+  const orderNumber = `W${new Date().getFullYear()}${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`
+  
+  const testOrder = {
+    id: 1,
+    orderNumber,
+    type: 'withdraw',
+    amount: '500.00',
+    customerName: '测试客户',
+    customerAccount: 'test@example.com',
+    status: 'withdraw_pending',
+    remark: '测试提现订单',
+    createdAt: new Date().toISOString().split('T')[0],
+    updatedAt: new Date().toISOString().split('T')[0],
+    updatedBy: '客户'
+  }
+  
+  // 保存到本地存储
+  localStorage.setItem('realOrders', JSON.stringify([testOrder]))
+  
+  // 显示通知
+  ElMessage.success(`已创建测试提现订单: ${orderNumber}`)
+  
+  return testOrder
+}
+
+// 添加测试按钮
+const addTestOrder = () => {
+  if (activeOrderTab.value === 'recharge') {
+    // 创建充值测试订单
+    const orderNumber = `R${new Date().getFullYear()}${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`
+    
+    const testOrder = {
+      orderNumber,
+      type: 'recharge',
+      amount: (Math.random() * 1000 + 100).toFixed(2),
+      customerName: '测试客户',
+      customerAccount: 'test@example.com',
+      status: 'recharge_pending',
+      timestamp: new Date().toISOString().split('T')[0]
     }
-  ).then(() => {
-    ElMessage({
-      type: 'success',
-      message: '数据导出成功，请在下载中心查看'
-    })
-  }).catch(() => {})
+    
+    addRealOrder(testOrder)
+  } else {
+    // 创建提现测试订单
+    const orderNumber = `W${new Date().getFullYear()}${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`
+    
+    const testOrder = {
+      orderNumber,
+      type: 'withdraw',
+      amount: (Math.random() * 1000 + 100).toFixed(2),
+      customerName: '测试客户',
+      customerAccount: 'test@example.com',
+      status: 'withdraw_pending',
+      timestamp: new Date().toISOString().split('T')[0]
+    }
+    
+    addRealOrder(testOrder)
+  }
 }
 </script>
 
@@ -525,47 +820,38 @@ const exportData = () => {
   margin-bottom: 20px;
 }
 
-.header-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.page-header h2 {
-  margin: 0;
-  color: #333;
-  font-size: 24px;
-}
-
-.filter-section {
-  background-color: #f8f9fa;
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 20px;
+.order-tabs {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
 }
 
+.filter-section {
+  margin-bottom: 20px;
+}
+
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
 .pagination-container {
-  margin-top: 20px;
   display: flex;
   justify-content: flex-end;
-}
-
-.status-form {
-  padding: 10px;
-}
-
-:deep(.el-form-item__label) {
-  font-weight: 500;
+  margin-top: 20px;
 }
 
 @media (max-width: 768px) {
   .filter-form {
-    display: flex;
     flex-direction: column;
   }
   
   .filter-form .el-form-item {
     margin-right: 0;
+    margin-bottom: 10px;
+    width: 100%;
   }
 }
 </style> 

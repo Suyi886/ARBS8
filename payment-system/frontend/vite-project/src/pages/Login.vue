@@ -59,6 +59,7 @@ import { useRouter } from 'vue-router'
 import type { FormInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'  // 导入用户store
+import { webSocketService } from '@/utils/websocket'  // 导入WebSocket服务
 
 const router = useRouter()
 const userStore = useUserStore()  // 使用用户store
@@ -111,6 +112,9 @@ const handleLogin = async () => {
       role: user.role
     }
     userStore.setUserInfo(userInfo)
+    
+    // 禁用模拟数据生成，避免虚假订单
+    webSocketService.setMockDataEnabled(false)
     
     ElMessage.success('登录成功')
     

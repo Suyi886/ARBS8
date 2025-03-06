@@ -46,6 +46,9 @@ export class WebSocketService {
   private isConnected = ref(false)
   private listeners: ((event: WebSocketEvent) => void)[] = []
   private mockInterval: number | null = null
+  
+  // 是否启用模拟数据生成
+  private enableMockData: boolean = false
 
   // 单例模式，确保整个应用只有一个WebSocket实例
   public static getInstance(): WebSocketService {
@@ -57,6 +60,23 @@ export class WebSocketService {
 
   // 私有构造函数，防止外部创建实例
   private constructor() {}
+  
+  // 设置是否启用模拟数据
+  public setMockDataEnabled(enabled: boolean): void {
+    this.enableMockData = enabled
+    console.log(`Mock data generation ${enabled ? 'enabled' : 'disabled'}`)
+    
+    // 如果禁用模拟数据但定时器仍在运行，则停止它
+    if (!enabled && this.mockInterval) {
+      clearInterval(this.mockInterval)
+      this.mockInterval = null
+    }
+    
+    // 如果启用模拟数据且已连接，则开始生成模拟数据
+    if (enabled && this.isConnected.value && !this.mockInterval) {
+      this.startMockMessageInterval()
+    }
+  }
 
   // 连接WebSocket
   public connect(): void {
@@ -69,8 +89,12 @@ export class WebSocketService {
       this.isConnected.value = true
       console.log('WebSocket connected!')
       
-      // 启动模拟消息发送
-      this.startMockMessageInterval()
+      // 仅当启用了模拟数据时才启动模拟消息发送
+      if (this.enableMockData) {
+        this.startMockMessageInterval()
+      } else {
+        console.log('Mock data generation is disabled')
+      }
     }, 1000)
   }
 
@@ -106,20 +130,32 @@ export class WebSocketService {
   public getConnectionStatus(): boolean {
     return this.isConnected.value
   }
+  
+  // 获取模拟数据状态
+  public getMockDataEnabled(): boolean {
+    return this.enableMockData
+  }
 
-  // 模拟发送消息
-  public sendMessage(message: any): void {
+  // 发送消息
+  public sendMessage(message: any): boolean {
+    if (this.isConnected.value && this.isConnected.value) {
+      console.log('WebSocket发送消息:', message);
+      // 这里需要根据实际情况实现WebSocket发送逻辑
+      return true;
+    } else {
+      console.error('WebSocket未连接，无法发送消息');
+      return false;
+    }
+  }
+
+  // 手动触发事件（用于测试或管理员操作）
+  public manualTriggerEvent(event: WebSocketEvent): void {
     if (!this.isConnected.value) {
       console.warn('WebSocket is not connected!')
       return
     }
     
-    console.log('Message sent:', message)
-    
-    // 模拟服务器确认消息接收
-    setTimeout(() => {
-      console.log('Server acknowledged message:', message)
-    }, 500)
+    this.triggerEvent(event)
   }
 
   // 模拟接收消息并触发事件
@@ -181,7 +217,7 @@ export class WebSocketService {
     
     // 每30-60秒随机发送一个模拟事件
     this.mockInterval = window.setInterval(() => {
-      if (!this.isConnected.value) return
+      if (!this.isConnected.value || !this.enableMockData) return
       
       const randomEvent = this.generateRandomEvent()
       this.triggerEvent(randomEvent)
@@ -249,17 +285,17 @@ export class WebSocketService {
       
       case 'system':
       default: {
-        const titles = ['系统通知', '维护公告', '功能更新']
-        const messages = [
-          '系统将于今晚23:00进行例行维护，预计1小时内完成',
-          '新版本已发布，包含多项功能改进和Bug修复',
-          '请注意：23:00-24:00系统将进行数据库升级，暂停服务'
+        const systemMessages = [
+          '系统维护将于今晚进行，预计10分钟',
+          '新版本功能已上线，请查看更新日志',
+          '检测到异常登录尝试，请注意账户安全',
         ]
+        const randomMessage = systemMessages[Math.floor(Math.random() * systemMessages.length)]
         
         return {
           type: 'system',
-          title: titles[Math.floor(Math.random() * titles.length)],
-          message: messages[Math.floor(Math.random() * messages.length)],
+          title: '系统通知',
+          message: randomMessage,
           timestamp
         }
       }

@@ -21,6 +21,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/Home.vue'),
     meta: { requiresAuth: false }
   },
+  // 隐藏注册页面 - 仅管理员知晓此URL
+  {
+    path: '/secure-registration-xK7p9Z',
+    name: 'SecureRegister',
+    component: () => import('@/pages/Register.vue'),
+    meta: { requiresAuth: false }
+  },
   // 管理员后台路由
   {
     path: '/admin',

@@ -59,6 +59,20 @@
             </el-select>
           </el-form-item>
           
+          <h4 class="settings-section-title">测试与开发</h4>
+          
+          <el-form-item label="模拟数据生成">
+            <el-switch 
+              v-model="systemSettings.enableMockData" 
+              active-text="开启"
+              inactive-text="关闭"
+              @change="toggleMockData"
+            />
+            <div class="form-item-help">
+              开启后系统将自动生成测试订单和通知，仅用于测试环境
+            </div>
+          </el-form-item>
+          
           <el-form-item>
             <el-button type="primary" @click="saveSystemSettings" :loading="saving">保存设置</el-button>
             <el-button @click="resetForm('system')">重置</el-button>
@@ -377,6 +391,204 @@
           />
         </div>
       </el-tab-pane>
+      
+      <!-- 系统信息 -->
+      <el-tab-pane label="系统信息" name="system-info">
+        <div class="tab-header">
+          <h3>系统信息与接入指南</h3>
+          <p>关于系统的详细信息和客户接入方法</p>
+        </div>
+        
+        <el-card class="system-info-card" shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <h4>系统概览</h4>
+            </div>
+          </template>
+          
+          <el-descriptions :column="1" border>
+            <el-descriptions-item label="系统版本">v1.0.0</el-descriptions-item>
+            <el-descriptions-item label="前端框架">Vue 3 + TypeScript + Element Plus</el-descriptions-item>
+            <el-descriptions-item label="后端技术">Node.js + Express</el-descriptions-item>
+            <el-descriptions-item label="数据库">MongoDB</el-descriptions-item>
+            <el-descriptions-item label="部署状态">
+              <el-tag type="success">正常运行中</el-tag>
+            </el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+        
+        <el-card class="system-info-card" shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <h4>客户接入指南</h4>
+            </div>
+          </template>
+          
+          <div class="info-section">
+            <h5>1. 客户登录地址</h5>
+            <el-input 
+              :modelValue="clientUrl" 
+              readonly 
+              class="info-input"
+            >
+              <template #append>
+                <el-button @click="copyToClipboard(clientUrl)">复制</el-button>
+              </template>
+            </el-input>
+            <p class="info-help">提供给客户访问系统的登录网址</p>
+          </div>
+          
+          <div class="info-section">
+            <h5>2. 客户登录凭证</h5>
+            <div class="credentials-table">
+              <el-table :data="clientCredentials" border style="width: 100%">
+                <el-table-column prop="username" label="用户名" width="120" />
+                <el-table-column prop="password" label="密码" width="120">
+                  <template #default="scope">
+                    <el-input :model-value="scope.row.password" readonly show-password />
+                  </template>
+                </el-table-column>
+                <el-table-column prop="role" label="角色" width="100">
+                  <template #default="scope">
+                    <el-tag type="success">{{ scope.row.role }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="desc" label="说明" />
+              </el-table>
+            </div>
+            <p class="info-help">创建好的客户账号，可以提供给客户进行测试</p>
+          </div>
+          
+          <div class="info-section">
+            <h5>3. API文档</h5>
+            <p>本系统提供了以下API接口，可供第三方系统集成：</p>
+            <el-collapse>
+              <el-collapse-item title="1. 充值接口" name="1">
+                <div class="api-info">
+                  <p><strong>请求URL：</strong> <code>/api/recharge</code></p>
+                  <p><strong>请求方法：</strong> <code>POST</code></p>
+                  <p><strong>请求参数：</strong></p>
+                  <pre>{
+  "amount": "充值金额",
+  "paymentMethod": "支付方式",
+  "userId": "用户ID",
+  "remark": "备注信息"
+}</pre>
+                  <p><strong>返回示例：</strong></p>
+                  <pre>{
+  "code": 200,
+  "message": "充值订单创建成功",
+  "data": {
+    "orderNumber": "R202403050001",
+    "amount": "1000.00",
+    "status": "recharge_pending"
+  }
+}</pre>
+                </div>
+              </el-collapse-item>
+              
+              <el-collapse-item title="2. 订单查询接口" name="2">
+                <div class="api-info">
+                  <p><strong>请求URL：</strong> <code>/api/orders</code></p>
+                  <p><strong>请求方法：</strong> <code>GET</code></p>
+                  <p><strong>请求参数：</strong></p>
+                  <pre>{
+  "userId": "用户ID",
+  "startDate": "开始日期",
+  "endDate": "结束日期",
+  "status": "订单状态",
+  "type": "订单类型"
+}</pre>
+                </div>
+              </el-collapse-item>
+              
+              <el-collapse-item title="3. WebSocket事件" name="3">
+                <div class="api-info">
+                  <p><strong>WebSocket连接地址：</strong> <code>ws://localhost:5173/ws</code></p>
+                  <p><strong>订单状态变更事件格式：</strong></p>
+                  <pre>{
+  "orderId": "订单ID",
+  "orderNumber": "订单编号",
+  "type": "订单类型", // recharge/withdraw
+  "oldStatus": "原状态",
+  "newStatus": "新状态",
+  "timestamp": "时间戳"
+}</pre>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
+          </div>
+          
+          <div class="info-section">
+            <h5>4. 测试流程指南</h5>
+            <ol class="guide-steps">
+              <li>客户使用提供的凭证登录系统</li>
+              <li>在客户仪表盘页面，点击充值或提现按钮</li>
+              <li>填写相应的表单信息并提交</li>
+              <li>完成相关操作后，可在订单列表页面查看订单状态</li>
+              <li>系统会通过WebSocket实时推送订单状态变更通知</li>
+            </ol>
+          </div>
+        </el-card>
+        
+        <el-card class="system-info-card" shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <h4>开发者工具</h4>
+            </div>
+          </template>
+          
+          <div class="info-section">
+            <h5>手动触发订单状态更新</h5>
+            <p>用于测试客户接收WebSocket事件的功能</p>
+            
+            <el-form :model="testEventForm" label-width="120px">
+              <el-form-item label="事件类型">
+                <el-select v-model="testEventForm.eventType">
+                  <el-option label="订单状态变更" value="status_change" />
+                  <el-option label="系统通知" value="system_notice" />
+                </el-select>
+              </el-form-item>
+              
+              <el-form-item v-if="testEventForm.eventType === 'status_change'" label="订单号">
+                <el-input v-model="testEventForm.orderNumber" placeholder="例如：R202403050001" />
+              </el-form-item>
+              
+              <el-form-item v-if="testEventForm.eventType === 'status_change'" label="订单类型">
+                <el-select v-model="testEventForm.orderType">
+                  <el-option label="充值" value="recharge" />
+                  <el-option label="提现" value="withdraw" />
+                </el-select>
+              </el-form-item>
+              
+              <el-form-item v-if="testEventForm.eventType === 'status_change'" label="新状态">
+                <el-select v-model="testEventForm.newStatus">
+                  <el-option 
+                    v-for="status in getStatusOptions"
+                    :key="status.value"
+                    :label="status.label"
+                    :value="status.value"
+                  />
+                </el-select>
+              </el-form-item>
+              
+              <el-form-item v-if="testEventForm.eventType === 'system_notice'" label="通知标题">
+                <el-input v-model="testEventForm.title" />
+              </el-form-item>
+              
+              <el-form-item v-if="testEventForm.eventType === 'system_notice'" label="通知内容">
+                <el-input v-model="testEventForm.message" type="textarea" rows="2" />
+              </el-form-item>
+              
+              <el-form-item>
+                <el-button type="primary" @click="sendTestEvent" :loading="sendingEvent">
+                  发送测试事件
+                </el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+        </el-card>
+      </el-tab-pane>
     </el-tabs>
     
     <!-- 添加用户对话框 -->
@@ -436,6 +648,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
+import { webSocketService } from '@/utils/websocket'
 
 // 活动标签页
 const activeTab = ref('system')
@@ -450,7 +663,8 @@ const systemSettings = reactive({
   maintenanceMode: false,
   maintenanceMessage: '系统维护中，预计1小时后恢复',
   currency: 'CNY',
-  timezone: 'UTC+8'
+  timezone: 'UTC+8',
+  enableMockData: false
 })
 
 // 支付设置
@@ -639,11 +853,20 @@ const addUser = async () => {
 
 // 生命周期钩子
 onMounted(() => {
+  // 同步模拟数据状态
+  systemSettings.enableMockData = webSocketService.getMockDataEnabled()
+  
   // 模拟加载设置
   setTimeout(() => {
     // 设置已加载
   }, 500)
 })
+
+// 切换模拟数据生成
+const toggleMockData = (value: boolean) => {
+  webSocketService.setMockDataEnabled(value)
+  ElMessage.info(`已${value ? '开启' : '关闭'}模拟数据生成`)
+}
 
 // 保存系统设置
 const saveSystemSettings = async () => {
@@ -723,6 +946,8 @@ const resetForm = (type: string) => {
       systemSettings.maintenanceMessage = '系统维护中，预计1小时后恢复'
       systemSettings.currency = 'CNY'
       systemSettings.timezone = 'UTC+8'
+      systemSettings.enableMockData = false
+      webSocketService.setMockDataEnabled(false)
     } else if (type === 'payment') {
       paymentSettings.minRechargeAmount = 100
       paymentSettings.maxRechargeAmount = 50000
@@ -803,6 +1028,103 @@ const handleCurrentChange = (page: number) => {
   currentPage.value = page
   // 刷新用户列表
 }
+
+// 系统信息和开发者工具
+const clientUrl = window.location.origin
+const sendingEvent = ref(false)
+
+const clientCredentials = [
+  { username: 'user1', password: 'user123', role: '客户', desc: '测试客户账号' },
+  { username: 'suyi6', password: '123456', role: '客户', desc: '您的自定义客户账号' }
+]
+
+// 测试事件表单
+const testEventForm = reactive({
+  eventType: 'status_change',
+  orderNumber: 'R' + new Date().getFullYear() + '0001',
+  orderType: 'recharge',
+  newStatus: 'recharge_completed',
+  title: '系统通知',
+  message: '这是一条测试通知'
+})
+
+// 获取状态选项
+const getStatusOptions = computed(() => {
+  if (testEventForm.orderType === 'recharge') {
+    return [
+      { label: '充值待处理', value: 'recharge_pending' },
+      { label: '充值处理中', value: 'recharge_processing' },
+      { label: '充值已完成', value: 'recharge_completed' },
+      { label: '充值失败', value: 'recharge_failed' }
+    ]
+  } else {
+    return [
+      { label: '提现待处理', value: 'withdraw_pending' },
+      { label: '提现处理中', value: 'withdraw_processing' },
+      { label: '提现已完成', value: 'withdraw_completed' },
+      { label: '提现失败', value: 'withdraw_failed' }
+    ]
+  }
+})
+
+// 复制文本到剪贴板
+const copyToClipboard = (text: string) => {
+  navigator.clipboard.writeText(text)
+    .then(() => {
+      ElMessage.success('已复制到剪贴板')
+    })
+    .catch(() => {
+      ElMessage.error('复制失败，请手动复制')
+    })
+}
+
+// 发送测试事件
+const sendTestEvent = async () => {
+  if (!webSocketService.getConnectionStatus()) {
+    ElMessage.error('WebSocket未连接，无法发送测试事件')
+    return
+  }
+  
+  sendingEvent.value = true
+  
+  try {
+    const now = new Date()
+    const timestamp = now.toISOString()
+    
+    if (testEventForm.eventType === 'status_change') {
+      // 构造订单状态变更事件
+      const statusEvent = {
+        orderId: Math.floor(Math.random() * 1000) + 1,
+        orderNumber: testEventForm.orderNumber,
+        type: testEventForm.orderType as 'recharge' | 'withdraw',
+        oldStatus: testEventForm.orderType + '_pending',
+        newStatus: testEventForm.newStatus,
+        timestamp,
+        updatedBy: '管理员',
+        message: '订单状态已更新'
+      }
+      
+      webSocketService.manualTriggerEvent(statusEvent)
+      ElMessage.success('状态变更事件已发送')
+    } else {
+      // 构造系统通知事件
+      const systemEvent = {
+        type: 'system' as const,
+        title: testEventForm.title,
+        message: testEventForm.message,
+        timestamp
+      }
+      
+      webSocketService.manualTriggerEvent(systemEvent)
+      ElMessage.success('系统通知事件已发送')
+    }
+  } catch (error) {
+    console.error('发送测试事件失败:', error)
+    ElMessage.error('发送测试事件失败')
+  } finally {
+    sendingEvent.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -854,6 +1176,13 @@ const handleCurrentChange = (page: number) => {
   padding-bottom: 8px;
   border-bottom: 1px dashed #ebeef5;
   color: #606266;
+}
+
+.form-item-help {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 5px;
+  line-height: 1.4;
 }
 
 .unit {
@@ -910,6 +1239,89 @@ const handleCurrentChange = (page: number) => {
   
   .search-input {
     width: 100%;
+  }
+}
+
+/* 系统信息页面样式 */
+.system-info-card {
+  margin-bottom: 20px;
+}
+
+.system-info-card h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #303133;
+}
+
+.info-section {
+  margin-bottom: 25px;
+}
+
+.info-section:last-child {
+  margin-bottom: 0;
+}
+
+.info-section h5 {
+  font-size: 15px;
+  margin: 0 0 10px 0;
+  color: #409eff;
+  font-weight: 500;
+}
+
+.info-input {
+  margin-bottom: 5px;
+}
+
+.info-help {
+  font-size: 12px;
+  color: #909399;
+  margin: 5px 0 0 0;
+}
+
+.credentials-table {
+  margin: 10px 0;
+}
+
+.api-info {
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.api-info pre {
+  background-color: #f8f8f8;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #ebeef5;
+  font-family: monospace;
+  margin: 10px 0;
+  overflow-x: auto;
+}
+
+.api-info code {
+  background-color: #f0f0f0;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.guide-steps {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+.guide-steps li {
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .system-info-card {
+    margin-bottom: 15px;
+  }
+  
+  .api-info pre {
+    font-size: 12px;
   }
 }
 </style> 
