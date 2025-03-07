@@ -56,6 +56,16 @@ const routes: RouteRecordRaw[] = [
         path: 'settings',
         name: 'AdminSettings',
         component: () => import('@/pages/Settings.vue')
+      },
+      {
+        path: 'help-center',
+        name: 'AdminHelpCenter',
+        component: () => import('@/pages/admin/HelpCenterManagement.vue')
+      },
+      {
+        path: 'migrate-users',
+        name: 'MigrateUsers',
+        component: () => import('@/pages/admin/UserMigration.vue')
       }
     ]
   },

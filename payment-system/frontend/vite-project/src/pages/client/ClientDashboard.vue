@@ -95,15 +95,15 @@
             </template>
             <div class="card-content">
               <div class="help-links">
-                <div class="help-link">
+                <div class="help-link" @click="openHelpDialog('faq')">
                   <el-icon><QuestionFilled /></el-icon>
                   <span>常见问题</span>
                 </div>
-                <div class="help-link">
+                <div class="help-link" @click="openHelpDialog('contact')">
                   <el-icon><Service /></el-icon>
                   <span>联系客服</span>
                 </div>
-                <div class="help-link">
+                <div class="help-link" @click="openHelpDialog('tutorials')">
                   <el-icon><Document /></el-icon>
                   <span>使用教程</span>
                 </div>
@@ -204,6 +204,69 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 帮助中心对话框 -->
+    <el-dialog
+      v-model="helpDialog.visible"
+      :title="helpDialog.title"
+      width="600px"
+      destroy-on-close
+    >
+      <!-- 联系客服内容 -->
+      <div v-if="helpDialog.type === 'contact'" class="help-dialog-content">
+        <div v-if="contactInfo.hotline || contactInfo.email || contactInfo.online" class="contact-info">
+          <div v-if="contactInfo.hotline" class="contact-item">
+            <strong>客服热线：</strong>
+            <span>{{ contactInfo.hotline }}</span>
+          </div>
+          <div v-if="contactInfo.email" class="contact-item">
+            <strong>电子邮箱：</strong>
+            <span>{{ contactInfo.email }}</span>
+          </div>
+          <div v-if="contactInfo.online" class="contact-item">
+            <strong>在线客服：</strong>
+            <span>{{ contactInfo.online }}</span>
+          </div>
+          <div v-if="contactInfo.workingHours" class="contact-item">
+            <strong>工作时间：</strong>
+            <span>{{ contactInfo.workingHours }}</span>
+          </div>
+          <div v-if="contactInfo.description" class="contact-item desc">
+            <strong>客服说明：</strong>
+            <p>{{ contactInfo.description }}</p>
+          </div>
+        </div>
+        <el-empty v-else description="暂无客服信息" />
+      </div>
+
+      <!-- 常见问题内容 -->
+      <div v-if="helpDialog.type === 'faq'" class="help-dialog-content">
+        <el-collapse v-if="faqItems.length > 0">
+          <el-collapse-item
+            v-for="(item, index) in faqItems"
+            :key="index"
+            :title="item.question"
+          >
+            <div v-html="item.answer.replace(/\n/g, '<br>')"></div>
+          </el-collapse-item>
+        </el-collapse>
+        <el-empty v-else description="暂无常见问题" />
+      </div>
+
+      <!-- 使用教程内容 -->
+      <div v-if="helpDialog.type === 'tutorials'" class="help-dialog-content">
+        <el-collapse v-if="tutorialItems.length > 0">
+          <el-collapse-item
+            v-for="(item, index) in tutorialItems"
+            :key="index"
+            :title="item.title"
+          >
+            <div v-html="item.content.replace(/\n/g, '<br>')"></div>
+          </el-collapse-item>
+        </el-collapse>
+        <el-empty v-else description="暂无使用教程" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -295,6 +358,28 @@ const announcements = ref([
   }
 ])
 
+// 帮助中心相关
+const helpDialog = reactive({
+  visible: false,
+  type: '',
+  title: ''
+});
+
+// 联系客服信息
+const contactInfo = reactive({
+  hotline: '',
+  email: '',
+  online: '',
+  workingHours: '',
+  description: ''
+});
+
+// 常见问题
+const faqItems = ref<Array<{question: string, answer: string, category: string}>>([]);
+
+// 使用教程
+const tutorialItems = ref<Array<{title: string, content: string, category: string}>>([]);
+
 // 生命周期钩子
 onMounted(() => {
   // 初始化：加载账户信息和统计数据
@@ -302,6 +387,9 @@ onMounted(() => {
   
   // 加载最近订单
   loadRecentOrders()
+  
+  // 加载帮助中心数据
+  loadHelpCenterData()
 })
 
 // 加载账户统计数据
@@ -520,6 +608,47 @@ const goToWithdraw = () => {
 const goToMessages = () => {
   router.push('/client/messages')
 }
+
+// 加载帮助中心数据
+const loadHelpCenterData = () => {
+  try {
+    // 加载联系客服信息
+    const savedContactInfo = localStorage.getItem('helpCenter_contact');
+    if (savedContactInfo) {
+      const parsed = JSON.parse(savedContactInfo);
+      Object.assign(contactInfo, parsed);
+    }
+    
+    // 加载常见问题
+    const savedFaqItems = localStorage.getItem('helpCenter_faq');
+    if (savedFaqItems) {
+      faqItems.value = JSON.parse(savedFaqItems);
+    }
+    
+    // 加载使用教程
+    const savedTutorialItems = localStorage.getItem('helpCenter_tutorials');
+    if (savedTutorialItems) {
+      tutorialItems.value = JSON.parse(savedTutorialItems);
+    }
+  } catch (error) {
+    console.error('加载帮助中心数据失败:', error);
+  }
+};
+
+// 打开帮助对话框
+const openHelpDialog = (type: string) => {
+  helpDialog.type = type;
+  
+  if (type === 'contact') {
+    helpDialog.title = '联系客服';
+  } else if (type === 'faq') {
+    helpDialog.title = '常见问题';
+  } else if (type === 'tutorials') {
+    helpDialog.title = '使用教程';
+  }
+  
+  helpDialog.visible = true;
+};
 </script>
 
 <style scoped>
@@ -758,5 +887,28 @@ const goToMessages = () => {
   .dashboard-card {
     margin-bottom: 16px;
   }
+}
+
+/* 帮助中心对话框样式 */
+.help-dialog-content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.contact-info {
+  padding: 10px;
+}
+
+.contact-item {
+  margin-bottom: 12px;
+}
+
+.contact-item strong {
+  color: #606266;
+}
+
+.contact-item.desc p {
+  margin: 8px 0 0 0;
+  white-space: pre-line;
 }
 </style> 

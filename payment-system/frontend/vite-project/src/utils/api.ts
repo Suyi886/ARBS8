@@ -2,9 +2,112 @@
 // 提供统一的API请求处理和本地回退功能
 
 import { ElMessage } from 'element-plus';
+import axios from 'axios';
 
 // API基础URL配置
-const API_BASE_URL = 'http://localhost:5173/api';
+const API_BASE_URL = 'http://localhost:3000/api';
+
+// 创建axios实例
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// 请求拦截器 - 添加身份验证token
+api.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => {
+    return Promise.reject(error);
+  }
+);
+
+// 响应拦截器 - 处理错误
+api.interceptors.response.use(
+  response => response,
+  error => {
+    // 处理401错误（未授权）
+    if (error.response && error.response.status === 401) {
+      // 清除本地存储的令牌和用户信息
+      localStorage.removeItem('token');
+      localStorage.removeItem('userInfo');
+      
+      // 重定向到登录页面
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// API请求函数
+const apiService = {
+  // 用户注册
+  register: async (userData: { username: string; password: string; role?: string }) => {
+    const response = await api.post('/register', userData);
+    return response.data;
+  },
+  
+  // 用户登录
+  login: async (credentials: { username: string; password: string }) => {
+    const response = await api.post('/login', credentials);
+    // 保存token和用户信息到localStorage
+    localStorage.setItem('token', response.data.token);
+    localStorage.setItem('userInfo', JSON.stringify(response.data.user));
+    return response.data;
+  },
+  
+  // 获取所有用户（管理员）
+  getAllUsers: async () => {
+    const response = await api.get('/users');
+    return response.data.users;
+  },
+  
+  // 获取单个用户信息
+  getUserInfo: async (userId: number) => {
+    const response = await api.get(`/users/${userId}`);
+    return response.data.user;
+  },
+  
+  // 更新用户状态
+  updateUserStatus: async (userId: number, status: 'active' | 'inactive') => {
+    const response = await api.patch(`/users/${userId}/status`, { status });
+    return response.data;
+  },
+  
+  // 更新用户余额
+  updateUserBalance: async (userId: number, balance: number) => {
+    const response = await api.patch(`/users/${userId}/balance`, { balance });
+    return response.data;
+  },
+  
+  // 删除用户
+  deleteUser: async (userId: number) => {
+    const response = await api.delete(`/users/${userId}`);
+    return response.data;
+  },
+  
+  // 迁移localStorage用户数据到MySQL
+  migrateUsers: async (users: any[]) => {
+    const response = await api.post('/migrate-users', { users });
+    return response.data;
+  },
+  
+  // 退出登录
+  logout: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userInfo');
+    window.location.href = '/login';
+  }
+};
+
+export default apiService;
 
 // 支持的API端点
 export enum ApiEndpoint {

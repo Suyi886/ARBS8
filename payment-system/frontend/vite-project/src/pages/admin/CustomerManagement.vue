@@ -91,7 +91,7 @@
                   <el-descriptions-item label="当前余额">{{ formatCurrency(props.row.balance) }}</el-descriptions-item>
                   <el-descriptions-item label="总充值金额">{{ formatCurrency(props.row.totalRecharge) }}</el-descriptions-item>
                   <el-descriptions-item label="总提现金额">{{ formatCurrency(props.row.totalWithdraw) }}</el-descriptions-item>
-                  <el-descriptions-item label="收益">{{ formatCurrency(props.row.totalRecharge - props.row.totalWithdraw) }}</el-descriptions-item>
+                  <el-descriptions-item label="收益">{{ formatCurrency(Math.max(0, props.row.totalRecharge - props.row.totalWithdraw)) }}</el-descriptions-item>
                 </el-descriptions>
                 
                 <div class="action-buttons">
@@ -275,9 +275,9 @@
             <el-col :span="8">
               <el-statistic 
                 title="净收益" 
-                :value="(detailDialog.customer?.totalRecharge || 0) - (detailDialog.customer?.totalWithdraw || 0)" 
+                :value="Math.max(0, (detailDialog.customer?.totalRecharge || 0) - (detailDialog.customer?.totalWithdraw || 0))" 
                 :precision="2"
-                :value-style="{ color: (detailDialog.customer?.totalRecharge || 0) - (detailDialog.customer?.totalWithdraw || 0) > 0 ? '#67C23A' : '#F56C6C' }"
+                :value-style="{ color: '#67C23A' }"
               >
                 <template #suffix>元</template>
               </el-statistic>
@@ -314,7 +314,7 @@
             </el-table-column>
           </el-table>
           <div class="view-all-link">
-            <el-button link type="primary" @click="viewCustomerOrders(detailDialog.customer)">查看全部订单</el-button>
+            <el-button link type="primary" @click="detailDialog.customer && viewCustomerOrders(detailDialog.customer)">查看全部订单</el-button>
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -322,7 +322,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailDialog.visible = false">关闭</el-button>
-          <el-button type="primary" @click="editCustomer(detailDialog.customer)">编辑</el-button>
+          <el-button type="primary" @click="detailDialog.customer && editCustomer(detailDialog.customer)">编辑</el-button>
         </span>
       </template>
     </el-dialog>
@@ -491,14 +491,14 @@ const customerDialog = reactive({
 const detailDialog = reactive({
   visible: false,
   activeTab: 'info',
-  customer: null,
-  recentOrders: []
+  customer: null as Customer | null,
+  recentOrders: [] as Order[]
 })
 
 // 重置密码对话框
 const resetDialog = reactive({
   visible: false,
-  customer: null,
+  customer: null as Customer | null,
   form: {
     newPassword: '',
     confirmPassword: ''
@@ -551,6 +551,7 @@ const paginatedCustomers = computed(() => {
 
 // 生命周期钩子
 onMounted(() => {
+  cleanupFakeOrderData()
   loadCustomers()
   updateStats()
 })
@@ -633,7 +634,8 @@ const getUserOrderStats = (userId: string | number) => {
       }
     })
     
-    const balance = totalRecharge - totalWithdraw
+    // 计算余额，确保不为负数（新用户默认为0）
+    const balance = Math.max(0, totalRecharge - totalWithdraw)
     
     return {
       balance,
@@ -703,12 +705,12 @@ const handleCurrentChange = (page: number) => {
 }
 
 // 处理表格行点击
-const handleRowClick = (row) => {
+const handleRowClick = (row: Customer) => {
   viewCustomerDetails(row)
 }
 
 // 查看客户详情
-const viewCustomerDetails = (customer) => {
+const viewCustomerDetails = (customer: Customer) => {
   detailDialog.customer = { ...customer }
   detailDialog.recentOrders = generateMockOrders(customer.id)
   detailDialog.visible = true
@@ -716,7 +718,7 @@ const viewCustomerDetails = (customer) => {
 }
 
 // 查看客户订单
-const viewCustomerOrders = (customer) => {
+const viewCustomerOrders = (customer: Customer) => {
   // 跳转到订单管理页面，并传递客户ID参数
   router.push({
     path: '/admin/orders',
@@ -742,12 +744,19 @@ const handleCreateCustomer = () => {
 }
 
 // 编辑客户
-const editCustomer = (customer) => {
+const editCustomer = (customer: Customer) => {
   customerDialog.isEdit = true
+  // 将customer转换为表单需要的格式
   customerDialog.form = {
-    ...customer,
+    id: String(customer.id), // 强制转换为string
+    username: customer.username,
+    name: customer.name,
+    phone: customer.phone || '',
+    email: customer.email || '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    status: customer.status,
+    remark: customer.remark || ''
   }
   customerDialog.visible = true
   
@@ -761,7 +770,7 @@ const editCustomer = (customer) => {
 const submitCustomerForm = async () => {
   if (!customerFormRef.value) return
   
-  await customerFormRef.value.validate((valid) => {
+  await customerFormRef.value.validate((valid: boolean) => {
     if (valid) {
       try {
         // 从localStorage获取用户数据
@@ -774,7 +783,7 @@ const submitCustomerForm = async () => {
         
         if (customerDialog.isEdit) {
           // 更新已有客户
-          const index = users.findIndex(u => u.id === customerDialog.form.id)
+          const index = users.findIndex((u: any) => u.id === customerDialog.form.id)
           if (index !== -1) {
             users[index] = { 
               ...users[index],
@@ -799,7 +808,7 @@ const submitCustomerForm = async () => {
           }
         } else {
           // 创建新客户
-          const newId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1
+          const newId = users.length > 0 ? Math.max(...users.map((u: any) => Number(u.id))) + 1 : 1
           
           // 创建新用户对象
           const newUser = {
@@ -821,7 +830,7 @@ const submitCustomerForm = async () => {
           localStorage.setItem('users', JSON.stringify(users))
           
           // 更新页面显示的数据
-          const newCustomer = {
+          const newCustomer: Customer = {
             ...customerDialog.form,
             id: newId,
             balance: 0,
@@ -831,7 +840,7 @@ const submitCustomerForm = async () => {
             withdrawCount: 0,
             createdAt: new Date().toISOString(),
             lastLoginAt: null
-          }
+          } as Customer
           
           customers.value.push(newCustomer)
           ElMessage.success('客户已创建成功')
@@ -846,14 +855,12 @@ const submitCustomerForm = async () => {
         console.error('保存客户数据失败:', error)
         ElMessage.error('保存客户数据失败')
       }
-    } else {
-      return false
     }
   })
 }
 
 // 重置密码
-const resetPassword = (customer) => {
+const resetPassword = (customer: Customer) => {
   resetDialog.customer = customer
   resetDialog.form = {
     newPassword: '',
@@ -864,9 +871,9 @@ const resetPassword = (customer) => {
 
 // 确认重置密码
 const confirmResetPassword = async () => {
-  if (!resetFormRef.value) return
+  if (!resetFormRef.value || !resetDialog.customer) return
   
-  await resetFormRef.value.validate((valid) => {
+  await resetFormRef.value.validate((valid: boolean) => {
     if (valid) {
       try {
         // 获取用户数据
@@ -881,8 +888,12 @@ const confirmResetPassword = async () => {
         // 生成新密码
         const newPassword = resetDialog.form.newPassword || generateRandomPassword()
         
+        if (!resetDialog.customer) {
+          throw new Error('客户信息丢失')
+        }
+        
         // 更新用户密码
-        const userIndex = users.findIndex(u => u.id === resetDialog.customer.id)
+        const userIndex = users.findIndex((u: any) => u.id === resetDialog.customer!.id)
         if (userIndex !== -1) {
           users[userIndex].password = newPassword
           
@@ -905,10 +916,8 @@ const confirmResetPassword = async () => {
         }
       } catch (error) {
         console.error('重置密码失败:', error)
-        ElMessage.error('重置密码失败: ' + error.message)
+        ElMessage.error('重置密码失败: ' + (error as Error).message)
       }
-    } else {
-      return false
     }
   })
 }
@@ -924,7 +933,7 @@ const generateRandomPassword = () => {
 }
 
 // 格式化日期
-const formatDate = (date) => {
+const formatDate = (date: Date | string | null | undefined) => {
   if (!date) return '未知'
   
   if (typeof date === 'string') {
@@ -951,13 +960,13 @@ const formatDate = (date) => {
 }
 
 // 格式化货币
-const formatCurrency = (value) => {
+const formatCurrency = (value: number | string | null | undefined) => {
   if (value === undefined || value === null) return '¥0.00'
   return `¥${Number(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
 }
 
 // 获取订单状态类型
-const getOrderStatusType = (status) => {
+const getOrderStatusType = (status: string) => {
   if (status?.includes('completed')) return 'success'
   if (status?.includes('processing')) return 'warning'
   if (status?.includes('pending')) return 'info'
@@ -966,8 +975,8 @@ const getOrderStatusType = (status) => {
 }
 
 // 获取订单状态文本
-const getOrderStatusText = (status) => {
-  const statusMap = {
+const getOrderStatusText = (status: string) => {
+  const statusMap: Record<string, string> = {
     'recharge_pending': '充值待处理',
     'recharge_processing': '充值处理中',
     'recharge_completed': '充值完成',
@@ -978,6 +987,63 @@ const getOrderStatusText = (status) => {
     'withdraw_failed': '提现失败'
   }
   return statusMap[status] || status
+}
+
+// 清除本地存储中的虚假订单数据
+const cleanupFakeOrderData = () => {
+  try {
+    const storedOrders = localStorage.getItem('realOrders')
+    if (!storedOrders) return
+    
+    const orders = JSON.parse(storedOrders)
+    if (!Array.isArray(orders)) return
+    
+    // 筛选出真实订单或将无效订单的金额设为0
+    const cleanedOrders = orders.map(order => {
+      // 如果是系统生成的模拟数据(没有正确对应到用户)，将金额重置为合理值
+      if (!order.customerId || order.customerId === 'undefined') {
+        return {
+          ...order,
+          amount: 0
+        }
+      }
+      
+      // 确保提现订单不会导致账户余额为负
+      if (order.type === 'withdraw') {
+        // 获取该用户的充值总额
+        const userRechargeTotal = orders
+          .filter(o => o.customerId === order.customerId && 
+                   o.type === 'recharge' && 
+                   o.status === 'recharge_completed')
+          .reduce((total, o) => total + Number(o.amount || 0), 0)
+        
+        // 获取该用户已完成的提现总额(不包括当前订单)
+        const userWithdrawTotal = orders
+          .filter(o => o.customerId === order.customerId && 
+                   o.type === 'withdraw' && 
+                   o.status === 'withdraw_completed' &&
+                   o.id !== order.id)
+          .reduce((total, o) => total + Number(o.amount || 0), 0)
+        
+        const availableBalance = userRechargeTotal - userWithdrawTotal
+        
+        // 如果可用余额小于提现金额，调整提现金额
+        if (availableBalance < Number(order.amount) && order.status === 'withdraw_completed') {
+          return {
+            ...order,
+            amount: Math.max(0, availableBalance)
+          }
+        }
+      }
+      
+      return order
+    })
+    
+    // 保存回本地存储
+    localStorage.setItem('realOrders', JSON.stringify(cleanedOrders))
+  } catch (error) {
+    console.error('清理订单数据失败:', error)
+  }
 }
 </script>
 
@@ -1035,6 +1101,8 @@ const getOrderStatusText = (status) => {
   transition: all 0.3s;
   border-radius: 8px;
   margin-bottom: 15px;
+  background-color: #fff;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
 }
 
 .stat-card:hover {
@@ -1049,6 +1117,7 @@ const getOrderStatusText = (status) => {
   justify-content: center;
   font-size: 32px;
   color: #fff;
+  flex-shrink: 0;
 }
 
 .stat-icon.total {
@@ -1065,22 +1134,29 @@ const getOrderStatusText = (status) => {
 
 .stat-content {
   flex: 1;
-  padding: 20px;
+  padding: 20px 15px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  min-width: 0;
 }
 
 .stat-title {
   font-size: 16px;
   color: #606266;
   margin-bottom: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stat-value {
   font-size: 28px;
   font-weight: bold;
   color: #303133;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 客户列表卡片 */
@@ -1178,6 +1254,30 @@ const getOrderStatusText = (status) => {
   
   .expanded-row {
     padding: 15px;
+  }
+  
+  .stat-icon {
+    width: 80px;
+    font-size: 24px;
+  }
+  
+  .stat-content {
+    padding: 15px 10px;
+  }
+  
+  .stat-value {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 576px) {
+  .page-header h2 {
+    font-size: 20px;
+  }
+  
+  .stat-cards .el-col {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
   }
 }
 </style> 

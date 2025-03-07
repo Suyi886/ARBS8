@@ -85,8 +85,10 @@
   import { useRouter } from 'vue-router'
   import type { FormInstance } from 'element-plus'
   import { ElMessage } from 'element-plus'
+  import { useUserStore } from '@/stores/user'  // 导入用户store
   
   const router = useRouter()
+  const userStore = useUserStore()  // 使用用户store
   const registerFormRef = ref<FormInstance>()
   const loading = ref(false)
   
@@ -132,81 +134,22 @@
       loading.value = true
       await registerFormRef.value.validate()
       
-      // 模拟API延迟
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // 创建新用户对象
-      const newUser = {
-        id: generateUserId(),
-        username: registerForm.username,
-        password: registerForm.password, // 注意：实际应用中不应明文存储密码
-        role: registerForm.role,
-        createdAt: new Date().toISOString()
-      }
-      
-      // 保存到localStorage
-      saveNewUser(newUser)
+      // 使用userStore中的register方法进行注册
+      await userStore.register(
+        registerForm.username,
+        registerForm.password,
+        registerForm.role
+      )
       
       ElMessage.success('注册成功')
       router.push('/login')
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('注册失败:', error)
-      ElMessage.error('注册失败，请检查输入信息')
+      ElMessage.error(userStore.error || '注册失败，请检查输入信息')
     } finally {
       loading.value = false
     }
-  }
-
-  // 生成用户ID
-  const generateUserId = () => {
-    // 从现有用户中获取最大ID
-    const storedUsers = localStorage.getItem('users')
-    if (storedUsers) {
-      try {
-        const users = JSON.parse(storedUsers)
-        if (Array.isArray(users) && users.length > 0) {
-          const maxId = Math.max(...users.map(user => typeof user.id === 'number' ? user.id : 0))
-          return maxId + 1
-        }
-      } catch (error) {
-        console.error('解析用户数据失败:', error)
-      }
-    }
-    // 如果没有现有用户或出错，从1开始
-    return 1
-  }
-
-  // 保存新用户
-  const saveNewUser = (newUser: any) => {
-    // 获取现有用户列表
-    const storedUsers = localStorage.getItem('users')
-    let users = []
-    
-    if (storedUsers) {
-      try {
-        users = JSON.parse(storedUsers)
-        // 确保是数组
-        if (!Array.isArray(users)) {
-          users = []
-        }
-      } catch (error) {
-        console.error('解析用户数据失败:', error)
-      }
-    }
-    
-    // 检查用户名是否已存在
-    const userExists = users.some((user: any) => user.username === newUser.username)
-    if (userExists) {
-      throw new Error('用户名已存在')
-    }
-    
-    // 添加新用户
-    users.push(newUser)
-    
-    // 保存回localStorage
-    localStorage.setItem('users', JSON.stringify(users))
-    console.log('新用户已添加:', newUser.username)
   }
 
   const goToLogin = () => {

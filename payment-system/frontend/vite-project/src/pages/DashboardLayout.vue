@@ -72,6 +72,14 @@
               <el-icon><Setting /></el-icon>
               <span>设置</span>
             </el-menu-item>
+            <el-menu-item index="help-center" class="menu-item">
+              <el-icon><QuestionFilled /></el-icon>
+              <span>帮助中心管理</span>
+            </el-menu-item>
+            <el-menu-item index="migrate-users" class="menu-item">
+              <el-icon><Upload /></el-icon>
+              <span>用户数据迁移</span>
+            </el-menu-item>
           </el-menu>
         </div>
         
@@ -103,7 +111,9 @@ import {
   Setting,
   InfoFilled,
   User,
-  SwitchButton
+  SwitchButton,
+  QuestionFilled,
+  Upload
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
@@ -119,6 +129,8 @@ const handleMenuSelect = (index: string) => {
   else if (index === 'orders') router.push('/admin/orders')
   else if (index === 'customers') router.push('/admin/customers')
   else if (index === 'settings') router.push('/admin/settings')
+  else if (index === 'help-center') router.push('/admin/help-center')
+  else if (index === 'migrate-users') router.push('/admin/migrate-users')
 }
 
 // 下拉菜单命令处理

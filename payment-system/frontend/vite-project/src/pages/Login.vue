@@ -83,56 +83,8 @@ const handleLogin = async () => {
     loading.value = true
     await loginFormRef.value.validate()
     
-    // 从localStorage获取用户数据
-    const storedUsers = localStorage.getItem('users')
-    let users: any[] = []
-    
-    if (storedUsers) {
-      try {
-        users = JSON.parse(storedUsers)
-        // 确保是数组
-        if (!Array.isArray(users)) {
-          users = []
-        }
-      } catch (error) {
-        console.error('解析用户数据失败:', error)
-      }
-    } else {
-      // 如果没有用户数据，初始化默认管理员账户
-      const defaultAdmin = { 
-        id: 1, 
-        username: 'admin', 
-        password: 'admin123', 
-        role: 'admin',
-        createdAt: new Date().toISOString()
-      }
-      users = [defaultAdmin]
-      localStorage.setItem('users', JSON.stringify(users))
-      console.log('已创建默认管理员账户')
-    }
-    
-    // 查找匹配的用户
-    const user = users.find((u: any) => 
-      u.username === loginForm.username && 
-      u.password === loginForm.password
-    )
-    
-    if (!user) {
-      ElMessage.error('用户名或密码错误')
-      return
-    }
-    
-    // 设置token和用户信息
-    const token = 'demo-token-' + user.id
-    userStore.setToken(token)
-    
-    // 设置用户信息
-    const userInfo = {
-      id: user.id,
-      username: user.username,
-      role: user.role
-    }
-    userStore.setUserInfo(userInfo)
+    // 使用userStore中的login方法进行登录
+    await userStore.login(loginForm.username, loginForm.password)
     
     // 禁用模拟数据生成，避免虚假订单
     webSocketService.setMockDataEnabled(false)
@@ -140,15 +92,15 @@ const handleLogin = async () => {
     ElMessage.success('登录成功')
     
     // 根据角色自动跳转到相应页面
-    if (user.role === 'admin') {
+    if (userStore.isAdmin) {
       router.push('/admin')
     } else {
       router.push('/client')
     }
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('登录失败:', error)
-    ElMessage.error('登录失败，请检查用户名和密码')
+    ElMessage.error(userStore.error || '登录失败，请检查用户名和密码')
   } finally {
     loading.value = false
   }
