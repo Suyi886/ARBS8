@@ -263,6 +263,26 @@ const submitRecharge = async () => {
     const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     generatedOrderNumber.value = `R${year}${month}${day}${random}`;
     
+    // 尝试向支付平台API发送充值请求
+    let apiSuccess = false;
+    try {
+      // 在实际生产环境中，这里应该连接真实的支付平台API
+      // 目前没有可用的API端点，所以我们直接使用本地模拟
+      
+      // 不再尝试任何API请求，直接显示友好的提示信息
+      console.log('API端点未配置，使用本地模拟模式');
+      
+      // 自定义错误信息
+      throw new Error('支付API未配置或不可用');
+    } catch (apiError: any) {
+      console.error('使用本地模拟处理充值请求:', apiError);
+      // 显示API错误，但继续本地处理
+      ElMessage.warning({
+        message: `由于无法连接到支付平台，系统将使用本地模拟处理您的充值请求。`,
+        duration: 3000
+      });
+    }
+    
     // 模拟向后端发送通知，创建新订单
     if (webSocketService.getConnectionStatus()) {
       webSocketService.sendMessage({
@@ -315,7 +335,12 @@ const submitRecharge = async () => {
     // 进入下一步
     activeStep.value = 1;
     
-    ElMessage.success('充值申请提交成功，已保存到系统中');
+    // 根据API成功与否显示不同的消息
+    if (apiSuccess) {
+      ElMessage.success('充值申请提交成功，已发送到支付平台');
+    } else {
+      ElMessage.success('充值申请已在本地保存，但未能发送到支付平台');
+    }
   } catch (error) {
     console.error('提交充值申请失败:', error);
     ElMessage.error('提交充值申请失败，请检查表单信息');

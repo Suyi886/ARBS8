@@ -394,7 +394,7 @@ const mockUpdateOrderStatus = async (orderId: number, orderNumber: string, type:
       type: 'status_change',
       orderId,
       orderNumber,
-      type,
+      orderType: type,
       oldStatus,
       newStatus,
       remark,

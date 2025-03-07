@@ -220,6 +220,7 @@ import {
   Plus 
 } from '@element-plus/icons-vue';
 import { webSocketService } from '@/utils/websocket';
+import { submitWithdraw as apiSubmitWithdraw } from '@/utils/api';
 
 interface BankCard {
   id: number;
@@ -401,6 +402,22 @@ const submitWithdraw = async () => {
     const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     generatedOrderNumber.value = `W${year}${month}${day}${random}`;
     
+    // 准备提现数据
+    const withdrawData = {
+      orderNumber: generatedOrderNumber.value,
+      amount: withdrawForm.amount.toFixed(2),
+      bankCard: selectedCard.value ? selectedCard.value.cardNumber : '',
+      bankName: selectedCard.value ? selectedCard.value.bankName : '',
+      remark: withdrawForm.remark || ''
+    };
+    
+    // 使用API服务发送提现请求
+    console.log('提交提现请求:', withdrawData);
+    const result = await apiSubmitWithdraw(withdrawData);
+    
+    // 确定API是否成功连接（非本地回退模式）
+    const apiSuccess = result.success && !result.localFallback;
+    
     // 模拟向后端发送通知，创建新订单
     if (webSocketService.getConnectionStatus()) {
       webSocketService.sendMessage({
@@ -425,19 +442,24 @@ const submitWithdraw = async () => {
     }
     
     // 添加新订单
-    realOrders.push({
+    const newOrder = {
       id: Date.now(),
       orderNumber: generatedOrderNumber.value,
       type: 'withdraw',
       amount: withdrawForm.amount.toFixed(2),
       customerName: '当前用户',
       customerAccount: 'customer@example.com',
+      bankName: selectedCard.value ? selectedCard.value.bankName : '',
+      cardNumber: selectedCard.value ? maskCardNumber(selectedCard.value.cardNumber) : '',
       status: 'withdraw_pending',
       remark: withdrawForm.remark || '用户提现申请',
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0],
       updatedBy: '客户'
-    });
+    };
+    
+    // 保存到订单列表
+    realOrders.push(newOrder);
     
     // 保存回localStorage
     localStorage.setItem('realOrders', JSON.stringify(realOrders));
@@ -453,7 +475,12 @@ const submitWithdraw = async () => {
     // 进入下一步
     activeStep.value = 2;
     
-    ElMessage.success('提现申请提交成功，已保存到系统中');
+    // 根据API成功与否显示不同的消息
+    if (apiSuccess) {
+      ElMessage.success('提现申请提交成功，已发送到支付平台');
+    } else {
+      ElMessage.success('提现申请已在本地保存，但未能发送到支付平台');
+    }
   } catch (error) {
     console.error('提交提现申请失败:', error);
     ElMessage.error('提交提现申请失败，请重试');

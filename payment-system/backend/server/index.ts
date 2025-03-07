@@ -10,7 +10,11 @@ dotenv.config();
 
 // 创建Express应用（像打地基）
 const app = express();
-const port = process.env.PORT || 3000;
+const port = 3001; // 直接硬编码端口，避免环境变量加载问题
+
+// 输出环境变量调试信息
+console.log(`环境变量PORT值: ${process.env.PORT}`);
+console.log(`使用端口: ${port}`);
 
 // 配置中间件（像安装基础设施）
 app.use(cors({
