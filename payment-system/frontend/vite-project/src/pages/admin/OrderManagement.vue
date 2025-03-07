@@ -1,7 +1,19 @@
 <template>
   <div class="order-management">
     <div class="page-header">
-      <h2>订单管理</h2>
+      <div class="header-title">
+        <h2>订单管理</h2>
+        <div v-if="currentCustomer" class="current-customer-info">
+          <el-tag type="info" effect="plain" class="customer-tag">
+            <el-icon><User /></el-icon>
+            当前客户: {{ currentCustomer.name }}
+          </el-tag>
+          <el-button link type="primary" @click="clearCustomerFilter">
+            <el-icon><Close /></el-icon>
+            清除客户筛选
+          </el-button>
+        </div>
+      </div>
       <div class="header-actions">
         <el-button type="success" @click="addTestOrder">
           <el-icon><Plus /></el-icon>
@@ -32,6 +44,23 @@
             
             <el-form-item label="订单号">
               <el-input v-model="filters.orderNumber" placeholder="输入订单号" clearable />
+            </el-form-item>
+            
+            <el-form-item label="客户">
+              <el-select 
+                v-model="filters.customerId" 
+                placeholder="选择客户" 
+                clearable
+                filterable
+              >
+                <el-option label="全部客户" value="" />
+                <el-option 
+                  v-for="customer in customerOptions" 
+                  :key="customer.id" 
+                  :label="customer.name" 
+                  :value="customer.id" 
+                />
+              </el-select>
             </el-form-item>
             
             <el-form-item label="时间范围">
@@ -67,13 +96,26 @@
           style="width: 100%"
           max-height="650"
         >
-          <el-table-column prop="orderNumber" label="订单号" width="180" />
+          <el-table-column prop="orderNumber" label="订单号" width="170" />
+          <el-table-column prop="type" label="类型" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.type === 'recharge' ? 'success' : 'warning'">
+                {{ row.type === 'recharge' ? '充值' : '提现' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="customerId" label="客户" width="120">
+            <template #default="{ row }">
+              <el-link type="primary" @click="viewCustomer(row.customerId)">
+                {{ getCustomerName(row.customerId) }}
+              </el-link>
+            </template>
+          </el-table-column>
           <el-table-column prop="amount" label="金额" width="120">
             <template #default="scope">
               <span>{{ scope.row.amount }} 元</span>
             </template>
           </el-table-column>
-          <el-table-column prop="customerName" label="客户名称" width="150" />
           <el-table-column prop="createdAt" label="创建时间" width="180" />
           <el-table-column prop="status" label="状态" width="120">
             <template #default="scope">
@@ -132,6 +174,23 @@
               <el-input v-model="filters.orderNumber" placeholder="输入订单号" clearable />
             </el-form-item>
             
+            <el-form-item label="客户">
+              <el-select 
+                v-model="filters.customerId" 
+                placeholder="选择客户" 
+                clearable
+                filterable
+              >
+                <el-option label="全部客户" value="" />
+                <el-option 
+                  v-for="customer in customerOptions" 
+                  :key="customer.id" 
+                  :label="customer.name" 
+                  :value="customer.id" 
+                />
+              </el-select>
+            </el-form-item>
+            
             <el-form-item label="时间范围">
               <el-date-picker
                 v-model="filters.dateRange"
@@ -165,13 +224,26 @@
           style="width: 100%"
           max-height="650"
         >
-          <el-table-column prop="orderNumber" label="订单号" width="180" />
+          <el-table-column prop="orderNumber" label="订单号" width="170" />
+          <el-table-column prop="type" label="类型" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.type === 'recharge' ? 'success' : 'warning'">
+                {{ row.type === 'recharge' ? '充值' : '提现' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="customerId" label="客户" width="120">
+            <template #default="{ row }">
+              <el-link type="primary" @click="viewCustomer(row.customerId)">
+                {{ getCustomerName(row.customerId) }}
+              </el-link>
+            </template>
+          </el-table-column>
           <el-table-column prop="amount" label="金额" width="120">
             <template #default="scope">
               <span>{{ scope.row.amount }} 元</span>
             </template>
           </el-table-column>
-          <el-table-column prop="customerName" label="客户名称" width="150" />
           <el-table-column prop="createdAt" label="创建时间" width="180" />
           <el-table-column prop="status" label="状态" width="120">
             <template #default="scope">
@@ -233,7 +305,7 @@
         <el-form-item label="新状态">
           <el-select v-model="statusDialog.newStatus" placeholder="选择新状态">
             <el-option
-              v-for="status in getAvailableStatusOptions(statusDialog.currentStatus)"
+              v-for="status in statusDialog.availableStatuses"
               :key="status.value"
               :label="status.label"
               :value="status.value"
@@ -256,7 +328,7 @@
           <el-button @click="statusDialog.visible = false">取消</el-button>
           <el-button 
             type="primary" 
-            @click="confirmStatusChange" 
+            @click="handleConfirmStatusChange" 
             :loading="statusDialog.loading"
           >
             确认修改
@@ -353,99 +425,17 @@ import {
   Search, 
   Delete,
   Plus,
-  Picture
+  Picture,
+  User,
+  Close
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { webSocketService } from '@/utils/websocket'
+import { useRouter, useRoute } from 'vue-router'
 
-// 模拟后端API调用
-const mockFetchOrders = async (params: any) => {
-  console.log('Fetching orders with params:', params)
-  // 模拟API延迟
-  await new Promise(resolve => setTimeout(resolve, 500))
-  
-  // 获取本地存储的真实订单数据
-  const storedOrders = localStorage.getItem('realOrders')
-  let realOrders = storedOrders ? JSON.parse(storedOrders) : []
-  
-  // 如果没有真实订单数据，创建一个空数组
-  if (!Array.isArray(realOrders)) {
-    realOrders = []
-  }
-  
-  // 根据订单类型过滤
-  let filteredData = realOrders.filter((order: {
-    type: string,
-    orderNumber: string,
-    status: string,
-    createdAt: string
-  }) => {
-    const typeMatch = params.orderType ? order.type === params.orderType : true
-    
-    // 按订单号过滤
-    const orderNumberMatch = params.orderNumber 
-      ? order.orderNumber.includes(params.orderNumber)
-      : true
-      
-    // 按状态过滤
-    const statusMatch = params.status 
-      ? order.status === params.status
-      : true
-      
-    // 按日期范围过滤
-    let dateMatch = true
-    if (params.dateRange && params.dateRange.length === 2) {
-      const orderDate = new Date(order.createdAt)
-      const startDate = new Date(params.dateRange[0])
-      const endDate = new Date(params.dateRange[1])
-      endDate.setDate(endDate.getDate() + 1) // 包含结束日期
-      
-      dateMatch = orderDate >= startDate && orderDate < endDate
-    }
-    
-    return typeMatch && orderNumberMatch && statusMatch && dateMatch
-  })
-  
-  // 如果没有真实订单数据，显示提示
-  if (filteredData.length === 0) {
-    ElMessage.info('没有找到符合条件的订单数据，请尝试提交新订单或检查筛选条件')
-  }
-  
-  // 模拟分页
-  const start = (params.page - 1) * params.pageSize
-  const end = start + params.pageSize
-  const paginatedData = filteredData.slice(start, end)
-  
-  return {
-    orders: paginatedData,
-    total: filteredData.length
-  }
-}
-
-// 模拟修改订单状态
-const mockUpdateOrderStatus = async (orderId: number, orderNumber: string, type: string, oldStatus: string, newStatus: string, remark: string) => {
-  console.log(`Updating order ${orderId} to status ${newStatus} with remark ${remark}`)
-  // 模拟API延迟
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  
-  // 通过WebSocket通知客户
-  if (webSocketService.getConnectionStatus()) {
-    webSocketService.sendMessage({
-      type: 'status_change',
-      orderId,
-      orderNumber,
-      orderType: type,
-      oldStatus,
-      newStatus,
-      remark,
-      updatedBy: '管理员',
-      timestamp: new Date().toISOString()
-    })
-  }
-  
-  // 模拟成功响应
-  return { success: true }
-}
+// 路由相关
+const router = useRouter()
+const route = useRoute()
 
 // 状态和页面数据
 const loading = ref(false)
@@ -455,31 +445,33 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const activeOrderTab = ref('recharge') // 当前选中的订单类型选项卡
 
-// 过滤条件
+// 筛选条件
 const filters = reactive({
-  orderType: 'recharge', // 默认显示充值订单
   status: '',
   orderNumber: '',
-  dateRange: []
+  dateRange: [] as string[],
+  customerId: ''
 })
 
 // 状态修改对话框
 const statusDialog = reactive({
   visible: false,
-  orderId: 0,
   orderNumber: '',
-  type: '',
   currentStatus: '',
   newStatus: '',
   remark: '',
-  loading: false
+  loading: false,
+  availableStatuses: [] as {value: string, label: string}[]
 })
 
-// 详情对话框
+// 订单详情对话框
 const detailDialog = reactive({
   visible: false,
   order: null as any
 })
+
+// 当前选中的订单
+const selectedOrder = ref<any>(null)
 
 // WebSocket事件处理
 const handleWebSocketEvent = (event: any) => {
@@ -589,10 +581,41 @@ const getStatusOptions = computed(() => {
 
 // 计算属性：当前筛选后的订单
 const filteredOrders = computed(() => {
-  return orders.value.filter(order => 
-    order.type === activeOrderTab.value &&
-    (filters.status ? order.status === filters.status : true)
-  )
+  if (!orders.value) return []
+  
+  return orders.value.filter((order: any) => {
+    // 根据当前选项卡筛选订单类型
+    if (activeOrderTab.value !== 'all' && order.type !== activeOrderTab.value) {
+      return false
+    }
+    
+    // 订单状态筛选
+    if (filters.status && !order.status.includes(filters.status)) {
+      return false
+    }
+    
+    // 订单号筛选
+    if (filters.orderNumber && !order.orderNumber.includes(filters.orderNumber)) {
+      return false
+    }
+    
+    // 客户ID筛选
+    if (filters.customerId && order.customerId !== filters.customerId) {
+      return false
+    }
+    
+    // 日期范围筛选
+    if (filters.dateRange && filters.dateRange.length === 2) {
+      const orderDate = new Date(order.createdAt).toISOString().split('T')[0]
+      const startDate = filters.dateRange[0]
+      const endDate = filters.dateRange[1]
+      if (orderDate < startDate || orderDate > endDate) {
+        return false
+      }
+    }
+    
+    return true
+  })
 })
 
 // 计算属性：当前筛选后的订单总数
@@ -606,7 +629,7 @@ const totalFilteredOrders = computed(() => {
 
 // 处理选项卡切换
 const handleTabChange = (tab: string) => {
-  filters.orderType = tab
+  activeOrderTab.value = tab
   filters.status = '' // 重置状态筛选
   fetchOrders()
 }
@@ -654,17 +677,38 @@ const getAvailableStatusOptions = (currentStatus: string) => {
   }
 }
 
+// 客户选项数据
+const customerOptions = ref<{ id: string; name: string }[]>([])
+
+// 当前选中的客户
+const currentCustomer = computed(() => {
+  if (!filters.customerId) return null
+  return customerOptions.value.find(customer => customer.id === filters.customerId) || null
+})
+
 // 生命周期钩子
 onMounted(() => {
+  // 从URL获取客户ID参数
+  const customerId = route.query.customerId as string
+  const customerName = route.query.customerName as string
+  
+  if (customerId) {
+    filters.customerId = customerId
+    // 如果URL中有客户名称，添加到客户选项中
+    if (customerName) {
+      customerOptions.value = [{
+        id: customerId,
+        name: customerName
+      }]
+    }
+  }
+  
+  // 加载数据
   fetchOrders()
+  loadCustomerOptions()
   
   // 添加WebSocket事件监听
   webSocketService.addEventListener(handleWebSocketEvent)
-  
-  // 测试：创建一个默认的提现测试订单
-  if (!localStorage.getItem('realOrders')) {
-    createTestWithdrawOrder()
-  }
 })
 
 onUnmounted(() => {
@@ -676,19 +720,12 @@ onUnmounted(() => {
 const fetchOrders = async () => {
   loading.value = true
   try {
-    const { orders: data, total } = await mockFetchOrders({
-      page: currentPage.value,
-      pageSize: pageSize.value,
-      orderType: activeOrderTab.value,
-      status: filters.status,
-      orderNumber: filters.orderNumber,
-      dateRange: filters.dateRange
-    })
+    // 从fetchOrderData获取订单数据
+    const data = fetchOrderData()
     orders.value = data
-    totalOrders.value = total
   } catch (error) {
-    console.error('获取订单失败:', error)
-    ElMessage.error('获取订单数据失败，请重试')
+    console.error('加载订单数据失败:', error)
+    ElMessage.error('加载订单数据失败')
   } finally {
     loading.value = false
   }
@@ -699,10 +736,21 @@ const refreshData = () => {
   fetchOrders()
 }
 
-// 搜索处理
+// 处理搜索
 const handleSearch = () => {
-  currentPage.value = 1 // 重置到第一页
-  fetchOrders()
+  currentPage.value = 1
+  
+  // 更新URL，支持分享筛选结果
+  if (filters.customerId) {
+    const customerName = customerOptions.value.find(c => c.id === filters.customerId)?.name
+    router.replace({
+      query: { 
+        ...route.query, 
+        customerId: filters.customerId,
+        customerName: customerName
+      }
+    })
+  }
 }
 
 // 重置过滤条件
@@ -710,6 +758,7 @@ const resetFilters = () => {
   filters.status = ''
   filters.orderNumber = ''
   filters.dateRange = []
+  filters.customerId = ''
   handleSearch()
 }
 
@@ -725,49 +774,75 @@ const handleCurrentChange = (page: number) => {
 }
 
 // 打开状态修改对话框
-const openStatusChangeDialog = (row: any) => {
-  statusDialog.orderId = row.id
-  statusDialog.orderNumber = row.orderNumber
-  statusDialog.type = row.type
-  statusDialog.currentStatus = row.status
-  statusDialog.newStatus = '' // 重置选择
-  statusDialog.remark = ''
+const openStatusChangeDialog = (order: any) => {
+  if (!order) return
+  
+  selectedOrder.value = order
+  statusDialog.orderNumber = order.orderNumber
+  statusDialog.currentStatus = order.status
+  statusDialog.newStatus = order.status
+  statusDialog.remark = order.remark || ''
+  
+  // 根据当前状态设置可用的状态选项
+  statusDialog.availableStatuses = getAvailableStatusOptions(order.status)
+  
   statusDialog.visible = true
 }
 
-// 确认修改状态
-const confirmStatusChange = async () => {
+// 表单提交状态更改
+const handleConfirmStatusChange = async () => {
+  // 验证是否选择了新状态
   if (!statusDialog.newStatus) {
-    ElMessage.warning('请选择新状态')
+    ElMessage.warning('请选择新的订单状态')
     return
   }
   
-  statusDialog.loading = true
-  
   try {
-    const result = await mockUpdateOrderStatus(
-      statusDialog.orderId,
-      statusDialog.orderNumber,
-      statusDialog.type,
-      statusDialog.currentStatus,
-      statusDialog.newStatus,
-      statusDialog.remark
-    )
+    statusDialog.loading = true
     
-    if (result.success) {
-      ElMessage.success('状态修改成功')
-      statusDialog.visible = false
-      
-      // 更新本地数据
-      const index = orders.value.findIndex(o => o.id === statusDialog.orderId)
-      if (index !== -1) {
-        orders.value[index].status = statusDialog.newStatus
-        orders.value[index].remark = statusDialog.remark || orders.value[index].remark
+    // 模拟API延迟
+    await new Promise(resolve => setTimeout(resolve, 800))
+    
+    // 更新本地数据
+    if (selectedOrder.value) {
+      const orderIndex = orders.value.findIndex(o => o.id === selectedOrder.value.id)
+      if (orderIndex !== -1) {
+        // 更新订单状态
+        orders.value[orderIndex].status = statusDialog.newStatus
+        
+        // 如果有备注，也更新备注
+        if (statusDialog.remark) {
+          orders.value[orderIndex].remark = statusDialog.remark
+        }
+        
+        // 更新修改时间
+        orders.value[orderIndex].updatedAt = new Date().toISOString()
+        
+        // 保存到本地存储
+        saveOrders(orders.value)
+        
+        // 显示成功消息
+        ElMessage.success('订单状态已更新')
+        
+        // 发送WebSocket消息（仅演示）
+        if (webSocketService.getConnectionStatus()) {
+          webSocketService.sendMessage({
+            type: 'status_change',
+            orderNumber: orders.value[orderIndex].orderNumber,
+            oldStatus: statusDialog.currentStatus,
+            newStatus: statusDialog.newStatus,
+            timestamp: new Date().toISOString()
+          })
+        }
       }
     }
+    
+    // 关闭对话框
+    statusDialog.visible = false
+    
   } catch (error) {
-    console.error('修改状态失败:', error)
-    ElMessage.error('修改状态失败，请重试')
+    console.error('更新订单状态失败:', error)
+    ElMessage.error('更新订单状态失败')
   } finally {
     statusDialog.loading = false
   }
@@ -784,66 +859,220 @@ const exportData = () => {
   ElMessage.success('导出功能开发中...')
 }
 
-// 创建测试提现订单
-const createTestWithdrawOrder = () => {
-  // 准备模拟数据
-  const orderNumber = `W${new Date().getFullYear()}${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`
-  
-  const testOrder = {
-    id: 1,
-    orderNumber,
-    type: 'withdraw',
-    amount: '500.00',
-    customerName: '测试客户',
-    customerAccount: 'test@example.com',
-    status: 'withdraw_pending',
-    remark: '测试提现订单',
-    createdAt: new Date().toISOString().split('T')[0],
-    updatedAt: new Date().toISOString().split('T')[0],
-    updatedBy: '客户'
-  }
-  
-  // 保存到本地存储
-  localStorage.setItem('realOrders', JSON.stringify([testOrder]))
-  
-  // 显示通知
-  ElMessage.success(`已创建测试提现订单: ${orderNumber}`)
-  
-  return testOrder
+// 获取客户名称方法
+const getCustomerName = (customerId: string) => {
+  const customer = customerOptions.value.find(c => c.id === customerId)
+  return customer ? customer.name : `客户${customerId}`
 }
 
-// 添加测试按钮
+// 查看客户详情
+const viewCustomer = (customerId: string) => {
+  router.push({
+    path: '/admin/customers',
+    query: { customerId }
+  })
+}
+
+// 加载客户选项数据
+const loadCustomerOptions = () => {
+  // 从localStorage加载真实用户数据
+  try {
+    // 从users集合中获取非管理员用户
+    const storedUsers = localStorage.getItem('users')
+    if (storedUsers) {
+      const allUsers = JSON.parse(storedUsers)
+      // 过滤掉管理员用户，只保留普通客户
+      const customers = allUsers.filter((user: any) => user.role !== 'admin')
+      
+      customerOptions.value = customers.map((user: any) => ({
+        id: String(user.id),
+        name: user.username
+      }))
+      
+      console.log('加载了', customerOptions.value.length, '个客户')
+    } else {
+      // 如果没有用户数据，初始化为空数组
+      customerOptions.value = []
+      console.log('没有找到用户数据')
+    }
+  } catch (error) {
+    console.error('加载客户数据失败:', error)
+    customerOptions.value = []
+  }
+}
+
+// 处理新订单添加
 const addTestOrder = () => {
-  if (activeOrderTab.value === 'recharge') {
-    // 创建充值测试订单
-    const orderNumber = `R${new Date().getFullYear()}${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`
+  // 检查是否有客户
+  if (customerOptions.value.length === 0) {
+    ElMessage.warning('没有客户数据，请先添加客户')
+    return
+  }
+  
+  // 获取现有订单号中的最大id
+  const maxId = orders.value.reduce((max, order) => Math.max(max, order.id || 0), 0)
+  
+  // 创建新订单对象
+  const now = new Date()
+  const typePrefix = activeOrderTab.value === 'recharge' ? 'R' : 'W'
+  const statusPrefix = activeOrderTab.value === 'recharge' ? 'recharge' : 'withdraw'
+  
+  // 随机选择一个客户
+  const randomIndex = Math.floor(Math.random() * customerOptions.value.length)
+  const randomCustomerId = customerOptions.value[randomIndex].id
+  
+  const newOrder = {
+    id: maxId + 1,
+    orderNumber: `${typePrefix}${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(Math.floor(Math.random() * 9999)).padStart(4, '0')}`,
+    type: activeOrderTab.value,
+    amount: (Math.random() * 5000 + 500).toFixed(2),
+    status: `${statusPrefix}_pending`,
+    createdAt: now.toISOString(),
+    updatedAt: null,
+    paymentMethod: activeOrderTab.value === 'recharge' ? ['alipay', 'wechat', 'bank'][Math.floor(Math.random() * 3)] : null,
+    remark: '',
+    customerId: randomCustomerId
+  }
+  
+  // 将新订单添加到数组
+  orders.value.unshift(newOrder)
+  
+  // 保存到本地存储
+  saveOrders(orders.value)
+  
+  ElMessage.success('测试订单已添加')
+}
+
+// 获取支付方式标签
+const getPaymentMethodLabel = (method: string) => {
+  const methodMap: Record<string, string> = {
+    'alipay': '支付宝',
+    'wechat': '微信支付',
+    'bank': '银行转账',
+    'other': '其他方式'
+  }
+  return methodMap[method] || method
+}
+
+// 模拟读取订单数据
+const fetchOrderData = () => {
+  loading.value = true
+  
+  try {
+    // 从localStorage获取订单数据，如果没有则使用初始模拟数据
+    const storedOrders = localStorage.getItem('realOrders')
+    let allOrders: any[] = storedOrders ? JSON.parse(storedOrders) : []
     
-    const testOrder = {
-      orderNumber,
-      type: 'recharge',
-      amount: (Math.random() * 1000 + 100).toFixed(2),
-      customerName: '测试客户',
-      customerAccount: 'test@example.com',
-      status: 'recharge_pending',
-      timestamp: new Date().toISOString().split('T')[0]
+    if (!Array.isArray(allOrders) || allOrders.length === 0) {
+      // 如果没有订单数据，生成模拟数据
+      allOrders = generateMockOrders()
+      localStorage.setItem('realOrders', JSON.stringify(allOrders))
     }
     
-    addRealOrder(testOrder)
-  } else {
-    // 创建提现测试订单
-    const orderNumber = `W${new Date().getFullYear()}${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`
+    // 确保订单有客户ID
+    allOrders = allOrders.map((order: any) => {
+      if (!order.customerId && customerOptions.value.length > 0) {
+        // 随机分配一个客户ID
+        const randomIndex = Math.floor(Math.random() * customerOptions.value.length)
+        const randomCustomerId = customerOptions.value[randomIndex].id
+        return { ...order, customerId: randomCustomerId }
+      }
+      return order
+    })
     
-    const testOrder = {
-      orderNumber,
-      type: 'withdraw',
-      amount: (Math.random() * 1000 + 100).toFixed(2),
-      customerName: '测试客户',
-      customerAccount: 'test@example.com',
-      status: 'withdraw_pending',
-      timestamp: new Date().toISOString().split('T')[0]
-    }
+    // 保存更新后的订单数据
+    localStorage.setItem('realOrders', JSON.stringify(allOrders))
     
-    addRealOrder(testOrder)
+    return allOrders
+  } catch (error) {
+    console.error('获取订单数据失败:', error)
+    return []
+  } finally {
+    loading.value = false
+  }
+}
+
+// 生成模拟订单
+const generateMockOrders = () => {
+  const mockOrders = []
+  const orderTypes = ['recharge', 'withdraw']
+  const rechargeStatuses = ['recharge_pending', 'recharge_processing', 'recharge_completed', 'recharge_failed']
+  const withdrawStatuses = ['withdraw_pending', 'withdraw_processing', 'withdraw_completed', 'withdraw_failed']
+  
+  // 创建50条模拟订单
+  for (let i = 0; i < 50; i++) {
+    const typeIndex = Math.floor(Math.random() * orderTypes.length)
+    const type = orderTypes[typeIndex]
+    
+    const now = new Date()
+    const randomDays = Math.floor(Math.random() * 30)
+    const orderDate = new Date(now.getTime() - randomDays * 24 * 60 * 60 * 1000)
+    
+    const statuses = type === 'recharge' ? rechargeStatuses : withdrawStatuses
+    const statusIndex = Math.floor(Math.random() * statuses.length)
+    
+    // 随机分配一个客户ID
+    const customerId = String(Math.floor(Math.random() * 20) + 1)
+    
+    mockOrders.push({
+      id: i + 1,
+      orderNumber: `${type === 'recharge' ? 'R' : 'W'}${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(i + 1).padStart(4, '0')}`,
+      type,
+      amount: (Math.random() * 5000 + 500).toFixed(2),
+      status: statuses[statusIndex],
+      createdAt: orderDate.toISOString(),
+      updatedAt: type === 'recharge' && statuses[statusIndex] === 'recharge_completed' ? 
+        new Date(orderDate.getTime() + Math.random() * 24 * 60 * 60 * 1000).toISOString() : null,
+      paymentMethod: type === 'recharge' ? ['alipay', 'wechat', 'bank'][Math.floor(Math.random() * 3)] : null,
+      bankInfo: type === 'withdraw' ? {
+        bankName: ['工商银行', '建设银行', '农业银行', '招商银行'][Math.floor(Math.random() * 4)],
+        accountName: `用户${Math.floor(Math.random() * 100)}`,
+        accountNumber: `6222************${Math.floor(Math.random() * 1000)}`
+      } : null,
+      remark: Math.random() > 0.7 ? '客户备注信息' : '',
+      customerId
+    })
+  }
+  
+  return mockOrders
+}
+
+// 清除客户筛选
+const clearCustomerFilter = () => {
+  filters.customerId = ''
+  handleSearch()
+  
+  // 更新URL，移除客户参数
+  router.replace({
+    query: { ...route.query, customerId: undefined, customerName: undefined }
+  })
+}
+
+// 保存订单到本地存储
+const saveOrders = (ordersData: any[]) => {
+  try {
+    localStorage.setItem('realOrders', JSON.stringify(ordersData))
+  } catch (error) {
+    console.error('保存订单数据失败:', error)
+  }
+}
+
+// 详情对话框使用的模板数据
+const orderDetails = (row: any) => {
+  return {
+    orderNumber: row.orderNumber || '未知',
+    type: row.type === 'recharge' ? '充值订单' : '提现订单',
+    amount: row.amount ? `${row.amount} 元` : '未知',
+    status: getStatusLabel(row.status),
+    statusClass: getStatusType(row.status),
+    createdAt: row.createdAt || '未知',
+    updatedAt: row.updatedAt || '尚未更新',
+    customerName: getCustomerName(row.customerId) || '未知',
+    paymentMethod: row.paymentMethod ? getPaymentMethodLabel(row.paymentMethod) : '未知',
+    bankInfo: row.bankInfo || null,
+    remark: row.remark || '无',
+    qrCode: row.qrCode || null,
+    idProof: row.idProof || null
   }
 }
 </script>
@@ -929,5 +1158,25 @@ const addTestOrder = () => {
 .image-error .el-icon {
   font-size: 48px;
   margin-bottom: 10px;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.current-customer-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+}
+
+.customer-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
 }
 </style> 

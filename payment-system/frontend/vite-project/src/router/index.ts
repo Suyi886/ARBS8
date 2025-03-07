@@ -48,6 +48,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/admin/OrderManagement.vue')
       },
       {
+        path: 'customers',
+        name: 'AdminCustomers',
+        component: () => import('@/pages/admin/CustomerManagement.vue')
+      },
+      {
         path: 'settings',
         name: 'AdminSettings',
         component: () => import('@/pages/Settings.vue')

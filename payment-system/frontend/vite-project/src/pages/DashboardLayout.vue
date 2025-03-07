@@ -64,6 +64,10 @@
               <el-icon><Document /></el-icon>
               <span>订单管理</span>
             </el-menu-item>
+            <el-menu-item index="customers" class="menu-item">
+              <el-icon><User /></el-icon>
+              <span>客户管理</span>
+            </el-menu-item>
             <el-menu-item index="settings" class="menu-item">
               <el-icon><Setting /></el-icon>
               <span>设置</span>
@@ -113,6 +117,7 @@ const userInfo = computed(() => userStore.userInfo) // 使用计算属性获取�
 const handleMenuSelect = (index: string) => {
   if (index === 'dashboard') router.push('/admin')
   else if (index === 'orders') router.push('/admin/orders')
+  else if (index === 'customers') router.push('/admin/customers')
   else if (index === 'settings') router.push('/admin/settings')
 }
 

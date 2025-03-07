@@ -53,6 +53,9 @@
               <div class="stat-value">{{ stats.totalUserCount }}</div>
               <div class="stat-count">
                 <span>今日新增:</span> {{ stats.todayNewUserCount }}
+                <el-button link type="primary" size="small" @click="goToCustomers" class="card-action-link">
+                  管理客户
+                </el-button>
               </div>
             </div>
           </el-card>
@@ -974,6 +977,11 @@ const getActivityColor = (type: string) => {
   }
 }
 
+// 跳转到客户管理页面
+const goToCustomers = () => {
+  router.push('/admin/customers')
+}
+
 // 跳转到订单管理页面
 const goToOrderManagement = () => {
   router.push('/admin/orders')
@@ -1066,10 +1074,20 @@ const handleOrder = (order: any) => {
 .stat-count {
   font-size: 12px;
   color: #909399;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .stat-count span {
   margin-right: 5px;
+}
+
+.card-action-link {
+  font-size: 12px;
+  margin-left: auto;
+  padding: 0;
+  height: auto;
 }
 
 /* 图表区域样式 */

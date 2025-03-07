@@ -76,13 +76,6 @@ const rules = {
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
-// 用户数据库（模拟）
-const userDb = [
-  { id: 1, username: 'admin', password: 'admin123', role: 'admin' },
-  { id: 2, username: 'user1', password: 'user123', role: 'client' },
-  { id: 101, username: 'suyi6', password: '123456', role: 'client' },
-]
-
 const handleLogin = async () => {
   if (!loginFormRef.value) return
   
@@ -90,8 +83,36 @@ const handleLogin = async () => {
     loading.value = true
     await loginFormRef.value.validate()
     
-    // 模拟登录验证 - 在实际项目中应该调用API进行身份验证
-    const user = userDb.find(u => 
+    // 从localStorage获取用户数据
+    const storedUsers = localStorage.getItem('users')
+    let users: any[] = []
+    
+    if (storedUsers) {
+      try {
+        users = JSON.parse(storedUsers)
+        // 确保是数组
+        if (!Array.isArray(users)) {
+          users = []
+        }
+      } catch (error) {
+        console.error('解析用户数据失败:', error)
+      }
+    } else {
+      // 如果没有用户数据，初始化默认管理员账户
+      const defaultAdmin = { 
+        id: 1, 
+        username: 'admin', 
+        password: 'admin123', 
+        role: 'admin',
+        createdAt: new Date().toISOString()
+      }
+      users = [defaultAdmin]
+      localStorage.setItem('users', JSON.stringify(users))
+      console.log('已创建默认管理员账户')
+    }
+    
+    // 查找匹配的用户
+    const user = users.find((u: any) => 
       u.username === loginForm.username && 
       u.password === loginForm.password
     )
