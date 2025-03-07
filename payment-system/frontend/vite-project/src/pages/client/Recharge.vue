@@ -18,7 +18,7 @@
             :model="rechargeForm" 
             :rules="rules" 
             ref="rechargeFormRef" 
-            label-width="100px"
+            label-width="120px"
             class="recharge-form"
           >
             <el-form-item label="充值金额" prop="amount">
@@ -52,13 +52,34 @@
               </el-radio-group>
             </el-form-item>
             
-            <el-form-item label="充值说明" prop="remark">
-              <el-input 
-                v-model="rechargeForm.remark" 
-                type="textarea" 
-                :rows="3" 
+            <el-form-item label="充值说明">
+              <el-input
+                v-model="rechargeForm.remark"
+                type="textarea"
+                rows="2"
                 placeholder="请输入充值说明（选填）"
               />
+            </el-form-item>
+            
+            <el-form-item label="支付凭证">
+              <el-upload
+                class="payment-upload"
+                :action="'#'"
+                :auto-upload="false"
+                :limit="1"
+                :on-change="handleFileChange"
+                :on-remove="handleFileRemove"
+                :file-list="paymentImageList"
+              >
+                <el-button type="primary">
+                  <el-icon><Upload /></el-icon> 上传支付截图
+                </el-button>
+                <template #tip>
+                  <div class="el-upload__tip">
+                    请上传支付成功的截图，仅支持JPG/PNG格式，大小不超过5MB
+                  </div>
+                </template>
+              </el-upload>
             </el-form-item>
             
             <el-divider>
@@ -123,6 +144,13 @@
             <p>充值金额：{{ rechargeForm.amount.toFixed(2) }} 元</p>
           </div>
           
+          <div class="payment-proof" v-if="paymentImageBase64">
+            <h3>您的支付凭证</h3>
+            <div class="proof-image">
+              <img :src="paymentImageBase64" alt="支付凭证" />
+            </div>
+          </div>
+          
           <div class="result-actions">
             <el-button @click="viewOrder">查看订单</el-button>
             <el-button type="primary" @click="resetForm">继续充值</el-button>
@@ -163,7 +191,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import type { FormInstance } from 'element-plus';
+import type { FormInstance, UploadFile, UploadUserFile } from 'element-plus';
 import { 
   Money, 
   CreditCard, 
@@ -171,7 +199,8 @@ import {
   InfoFilled, 
   CircleCheck, 
   Edit, 
-  Check 
+  Check, 
+  Upload
 } from '@element-plus/icons-vue';
 import { webSocketService } from '@/utils/websocket';
 
@@ -185,7 +214,7 @@ const generatedOrderNumber = ref('');
 // 充值表单
 const rechargeForm = reactive({
   amount: 1000,
-  paymentMethod: 'alipay',
+  paymentMethod: 'wechat',
   remark: ''
 });
 
@@ -222,6 +251,10 @@ const recentRecharges = ref([
   }
 ]);
 
+// 支付截图相关
+const paymentImageList = ref<UploadUserFile[]>([]);
+const paymentImageBase64 = ref<string>('');
+
 // 生命周期钩子
 onMounted(() => {
   fetchRecentRecharges();
@@ -243,6 +276,41 @@ const fetchRecentRecharges = async () => {
   }
 };
 
+// 处理文件上传变化
+const handleFileChange = (file: UploadUserFile) => {
+  // 检查文件类型
+  const isImage = file.raw?.type === 'image/jpeg' || file.raw?.type === 'image/png';
+  if (!isImage) {
+    ElMessage.error('只能上传JPG或PNG格式的图片！');
+    paymentImageList.value = paymentImageList.value.filter(item => item.uid !== file.uid);
+    return false;
+  }
+  
+  // 检查文件大小 (5MB = 5 * 1024 * 1024)
+  const isLt5M = file.raw && file.raw.size / 1024 / 1024 < 5;
+  if (!isLt5M) {
+    ElMessage.error('图片大小不能超过5MB！');
+    paymentImageList.value = paymentImageList.value.filter(item => item.uid !== file.uid);
+    return false;
+  }
+  
+  // 将文件转为base64
+  if (file.raw) {
+    const reader = new FileReader();
+    reader.readAsDataURL(file.raw);
+    reader.onload = (e) => {
+      paymentImageBase64.value = e.target?.result as string;
+    };
+  }
+  
+  return true;
+};
+
+// 处理文件移除
+const handleFileRemove = () => {
+  paymentImageBase64.value = '';
+};
+
 // 提交充值申请
 const submitRecharge = async () => {
   if (!rechargeFormRef.value) return;
@@ -250,10 +318,14 @@ const submitRecharge = async () => {
   try {
     await rechargeFormRef.value.validate();
     
-    submitting.value = true;
+    // 检查是否上传了支付凭证（可选）
+    if (paymentImageList.value.length === 0) {
+      ElMessage.warning('建议上传支付凭证，以便我们更快处理您的充值申请');
+      // 这里可以选择是否阻止提交
+      // return;
+    }
     
-    // 模拟API调用延迟
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    submitting.value = true;
     
     // 生成订单号
     const now = new Date();
@@ -296,6 +368,15 @@ const submitRecharge = async () => {
       });
     }
     
+    // 准备提现数据
+    const rechargeData = {
+      orderNumber: generatedOrderNumber.value,
+      amount: rechargeForm.amount.toFixed(2),
+      paymentMethod: rechargeForm.paymentMethod,
+      remark: rechargeForm.remark || '',
+      paymentProof: paymentImageBase64.value // 添加支付凭证
+    };
+    
     // 直接将订单保存到localStorage，供管理端读取
     // 这是一个临时解决方案，实际中应该通过WebSocket和后端数据库处理
     const storedOrders = localStorage.getItem('realOrders');
@@ -318,7 +399,8 @@ const submitRecharge = async () => {
       remark: rechargeForm.remark || '用户充值',
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0],
-      updatedBy: '客户'
+      updatedBy: '客户',
+      paymentProof: paymentImageBase64.value // 添加支付凭证
     });
     
     // 保存回localStorage
@@ -372,6 +454,8 @@ const resetForm = () => {
   }
   activeStep.value = 0;
   generatedOrderNumber.value = '';
+  paymentImageList.value = []; // 清空图片列表
+  paymentImageBase64.value = ''; // 清空图片base64
 };
 
 // 查看当前订单
@@ -651,5 +735,25 @@ const getStatusLabel = (status: string) => {
   .payment-actions button, .result-actions button {
     width: 100%;
   }
+}
+
+.payment-upload {
+  width: 100%;
+}
+
+.proof-image {
+  margin: 15px 0;
+  max-width: 300px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 5px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.proof-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 2px;
 }
 </style> 

@@ -24,7 +24,7 @@
               </div>
             </template>
             <div class="card-content">
-              <span class="balance">￥8,765.50</span>
+              <span class="balance">￥{{ accountStats.balance.toFixed(2) }}</span>
               <div class="card-actions">
                 <el-button type="primary" size="small" @click="goToRecharge">充值</el-button>
                 <el-button size="small" @click="goToWithdraw">提现</el-button>
@@ -44,16 +44,16 @@
             <div class="card-content">
               <div class="order-stats">
                 <div class="stat-item">
-                  <div class="stat-label">充值订单</div>
-                  <div class="stat-value">14</div>
+                  <div class="stat-label">今日充值订单</div>
+                  <div class="stat-value">{{ accountStats.todayRechargeCount }}</div>
                 </div>
                 <div class="stat-item">
-                  <div class="stat-label">提现订单</div>
-                  <div class="stat-value">8</div>
+                  <div class="stat-label">今日提现订单</div>
+                  <div class="stat-value">{{ accountStats.todayWithdrawCount }}</div>
                 </div>
                 <div class="stat-item">
-                  <div class="stat-label">处理中</div>
-                  <div class="stat-value">3</div>
+                  <div class="stat-label">待处理</div>
+                  <div class="stat-value">{{ accountStats.pendingRechargeCount + accountStats.pendingWithdrawCount }}</div>
                 </div>
               </div>
             </div>
@@ -73,7 +73,7 @@
                 <div class="stat-item">
                   <div class="stat-label">未读消息</div>
                   <div class="stat-value">
-                    <span>3</span>
+                    <span>{{ accountStats.unreadMessageCount }}</span>
                     <el-badge value="new" type="danger" class="new-badge" />
                   </div>
                 </div>
@@ -217,6 +217,7 @@ import {
   Document 
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -229,6 +230,19 @@ const lastLoginTime = ref('2024-02-25 08:30:45')
 const detailDialog = reactive({
   visible: false,
   order: null as any
+})
+
+// 账户信息和统计数据
+const accountStats = reactive({
+  balance: 8765.50,
+  todayRechargeCount: 0,
+  todayWithdrawCount: 0,
+  todayRechargeAmount: 0,
+  todayWithdrawAmount: 0,
+  pendingRechargeCount: 0,
+  pendingWithdrawCount: 0,
+  unreadMessageCount: 3,
+  date: new Date().toISOString().split('T')[0]
 })
 
 // 最近订单数据
@@ -283,8 +297,169 @@ const announcements = ref([
 
 // 生命周期钩子
 onMounted(() => {
-  // 这里可以添加一些初始化逻辑
+  // 初始化：加载账户信息和统计数据
+  loadAccountStats()
+  
+  // 加载最近订单
+  loadRecentOrders()
 })
+
+// 加载账户统计数据
+const loadAccountStats = () => {
+  try {
+    // 尝试从本地存储加载账户统计
+    const storedStats = localStorage.getItem('client_account_stats')
+    if (storedStats) {
+      const parsedStats = JSON.parse(storedStats)
+      
+      // 检查统计数据是否是今天的
+      if (isToday(parsedStats.date)) {
+        // 如果是今天的数据，直接使用
+        Object.assign(accountStats, parsedStats)
+        console.log('从本地存储加载今日账户统计数据')
+      } else {
+        // 如果不是今天的数据，重置每日统计，保留余额
+        resetDailyStats()
+        console.log('重置今日账户统计数据')
+      }
+    } else {
+      // 如果没有存储的统计数据，使用初始值
+      resetDailyStats()
+    }
+    
+    // 更新统计数据
+    updateAccountStats()
+  } catch (error) {
+    console.error('加载账户统计数据失败:', error)
+    // 如果出错，使用初始值
+    resetDailyStats()
+  }
+}
+
+// 检查日期是否是今天
+const isToday = (dateString: string) => {
+  const today = new Date()
+  const date = new Date(dateString)
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear()
+}
+
+// 重置每日统计数据
+const resetDailyStats = () => {
+  // 保留余额，重置其他每日统计
+  const balance = accountStats.balance
+  Object.assign(accountStats, {
+    balance,
+    todayRechargeCount: 0,
+    todayWithdrawCount: 0,
+    todayRechargeAmount: 0,
+    todayWithdrawAmount: 0,
+    pendingRechargeCount: 0,
+    pendingWithdrawCount: 0,
+    unreadMessageCount: 0,
+    date: new Date().toISOString().split('T')[0]
+  })
+}
+
+// 更新账户统计数据
+const updateAccountStats = () => {
+  // 从本地订单数据计算统计数据
+  updateStatsFromLocalData()
+  
+  // 保存到本地存储
+  saveAccountStats()
+}
+
+// 从本地订单数据更新统计
+const updateStatsFromLocalData = () => {
+  try {
+    // 获取本地存储的订单数据
+    const storedOrders = localStorage.getItem('realOrders')
+    if (!storedOrders) return
+    
+    const orders = JSON.parse(storedOrders)
+    if (!Array.isArray(orders)) return
+    
+    // 获取今天的日期
+    const today = new Date().toISOString().split('T')[0]
+    
+    // 过滤今日订单
+    const todayOrders = orders.filter(order => order.createdAt?.includes(today))
+    
+    // 计算今日充值订单统计
+    const todayRechargeOrders = todayOrders.filter(order => order.type === 'recharge')
+    accountStats.todayRechargeCount = todayRechargeOrders.length
+    accountStats.todayRechargeAmount = todayRechargeOrders.reduce((sum, order) => 
+      sum + parseFloat(order.amount || 0), 0)
+    
+    // 计算今日提现订单统计
+    const todayWithdrawOrders = todayOrders.filter(order => order.type === 'withdraw')
+    accountStats.todayWithdrawCount = todayWithdrawOrders.length
+    accountStats.todayWithdrawAmount = todayWithdrawOrders.reduce((sum, order) => 
+      sum + parseFloat(order.amount || 0), 0)
+    
+    // 计算待处理订单数
+    const pendingRechargeOrders = orders.filter(order => 
+      order.type === 'recharge' && order.status.includes('pending'))
+    accountStats.pendingRechargeCount = pendingRechargeOrders.length
+    
+    const pendingWithdrawOrders = orders.filter(order => 
+      order.type === 'withdraw' && order.status.includes('pending'))
+    accountStats.pendingWithdrawCount = pendingWithdrawOrders.length
+    
+    // 更新日期为今天
+    accountStats.date = today
+    
+    console.log('已更新账户统计数据')
+  } catch (error) {
+    console.error('更新账户统计数据失败:', error)
+    // 保留当前值
+  }
+}
+
+// 保存账户统计数据到本地存储
+const saveAccountStats = () => {
+  try {
+    localStorage.setItem('client_account_stats', JSON.stringify(accountStats))
+  } catch (error) {
+    console.error('保存账户统计数据失败:', error)
+  }
+}
+
+// 加载最近订单
+const loadRecentOrders = () => {
+  try {
+    // 获取本地存储的订单数据
+    const storedOrders = localStorage.getItem('realOrders')
+    if (!storedOrders) return
+    
+    const orders = JSON.parse(storedOrders)
+    if (!Array.isArray(orders)) return
+    
+    // 按创建时间降序排序
+    orders.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    
+    // 取前5条
+    recentOrders.value = orders.slice(0, 5).map(order => ({
+      orderNumber: order.orderNumber,
+      type: order.type,
+      amount: order.amount,
+      createdAt: formatDateTime(new Date(order.createdAt)),
+      status: order.status,
+      remark: order.remark || ''
+    }))
+  } catch (error) {
+    console.error('加载最近订单失败:', error)
+    // 保留默认订单数据
+  }
+}
+
+// 格式化日期时间
+const formatDateTime = (date: Date) => {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
 
 // 获取问候语
 const getGreeting = () => {

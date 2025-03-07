@@ -407,40 +407,158 @@ const resizeCharts = () => {
 
 // 刷新数据
 const refreshData = async () => {
-  loading.value = true
+  loading.value = true;
   
   try {
     // 模拟API延迟
-    await new Promise(resolve => setTimeout(resolve, 800))
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // 加载本地存储的统计数据(如果有)
+    loadStatsFromStorage();
     
     // 更新统计数据
     // 实际项目中应该从后端API获取数据
-    updateStats()
+    updateStats();
     
     // 更新图表数据
-    updateCharts()
+    updateCharts();
     
     // 更新待处理订单列表
-    updatePendingOrders()
+    updatePendingOrders();
     
   } catch (error) {
-    console.error('获取数据失败:', error)
+    console.error('获取数据失败:', error);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
+
+// 从本地存储加载统计数据
+const loadStatsFromStorage = () => {
+  try {
+    // 获取本地存储的统计数据
+    const storedStats = localStorage.getItem('dashboard_stats');
+    if (storedStats) {
+      const parsedStats = JSON.parse(storedStats);
+      
+      // 检查数据日期是否是今天
+      if (isToday(parsedStats.date)) {
+        // 如果是今天的数据，使用它
+        Object.assign(stats, parsedStats.data);
+        console.log('从本地存储加载今日统计数据');
+      } else {
+        // 如果不是今天的数据，则重置数据
+        resetDailyStats();
+        console.log('重置今日统计数据');
+      }
+    } else {
+      // 如果没有存储数据，初始化
+      resetDailyStats();
+    }
+  } catch (error) {
+    console.error('加载统计数据失败:', error);
+    resetDailyStats();
+  }
+};
+
+// 检查日期是否是今天
+const isToday = (dateString: string) => {
+  const today = new Date();
+  const date = new Date(dateString);
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear();
+};
+
+// 重置每日统计数据
+const resetDailyStats = () => {
+  stats.todayRechargeAmount = 0;
+  stats.todayRechargeCount = 0;
+  stats.todayWithdrawAmount = 0;
+  stats.todayWithdrawCount = 0;
+  stats.todayPendingOrderCount = 0;
+  stats.todayNewUserCount = 0;
+};
 
 // 更新统计数据
 const updateStats = () => {
-  // 模拟更新统计数据
-  // 实际项目中应该从后端API获取数据
-  stats.todayRechargeAmount = 12500.00 + Math.random() * 2000
-  stats.todayRechargeCount = 28 + Math.floor(Math.random() * 5)
-  stats.todayWithdrawAmount = 8650.00 + Math.random() * 1500
-  stats.todayWithdrawCount = 15 + Math.floor(Math.random() * 3)
-  stats.pendingOrderCount = 18 + Math.floor(Math.random() * 4)
-  stats.todayPendingOrderCount = 8 + Math.floor(Math.random() * 2)
-}
+  // 使用本地存储的订单数据计算今日统计
+  updateStatsFromLocalData();
+  
+  // 保存统计数据到本地存储
+  saveStatsToStorage();
+};
+
+// 从本地订单数据更新统计数据
+const updateStatsFromLocalData = () => {
+  try {
+    // 获取本地存储的订单数据
+    const storedOrders = localStorage.getItem('realOrders');
+    if (!storedOrders) return;
+    
+    const orders = JSON.parse(storedOrders);
+    if (!Array.isArray(orders)) return;
+    
+    // 获取今天的日期
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 过滤今日订单
+    const todayOrders = orders.filter(order => order.createdAt?.includes(today));
+    
+    // 计算今日充值订单统计
+    const todayRechargeOrders = todayOrders.filter(order => order.type === 'recharge');
+    stats.todayRechargeCount = todayRechargeOrders.length;
+    stats.todayRechargeAmount = todayRechargeOrders.reduce((sum, order) => 
+      sum + parseFloat(order.amount || 0), 0);
+    
+    // 计算今日提现订单统计
+    const todayWithdrawOrders = todayOrders.filter(order => order.type === 'withdraw');
+    stats.todayWithdrawCount = todayWithdrawOrders.length;
+    stats.todayWithdrawAmount = todayWithdrawOrders.reduce((sum, order) => 
+      sum + parseFloat(order.amount || 0), 0);
+    
+    // 计算今日待处理订单
+    const todayPendingOrders = todayOrders.filter(order => 
+      order.status.includes('pending'));
+    stats.todayPendingOrderCount = todayPendingOrders.length;
+    
+    // 更新总待处理订单数
+    const allPendingOrders = orders.filter(order => 
+      order.status.includes('pending'));
+    stats.pendingOrderCount = allPendingOrders.length;
+    
+    // 为了演示，随机更新用户数据
+    stats.todayNewUserCount = Math.floor(Math.random() * 5) + 1;
+    
+    console.log('已更新今日统计数据');
+  } catch (error) {
+    console.error('更新统计数据失败:', error);
+    
+    // 如果出错，使用随机数据（仅开发环境使用）
+    stats.todayRechargeAmount = Math.random() * 2000;
+    stats.todayRechargeCount = Math.floor(Math.random() * 5);
+    stats.todayWithdrawAmount = Math.random() * 1500;
+    stats.todayWithdrawCount = Math.floor(Math.random() * 3);
+    stats.pendingOrderCount = Math.floor(Math.random() * 4);
+    stats.todayPendingOrderCount = Math.floor(Math.random() * 2);
+  }
+};
+
+// 保存统计数据到本地存储
+const saveStatsToStorage = () => {
+  try {
+    // 包含今天的日期
+    const statsWithDate = {
+      date: new Date().toISOString().split('T')[0],
+      data: { ...stats }
+    };
+    
+    // 保存到本地存储
+    localStorage.setItem('dashboard_stats', JSON.stringify(statsWithDate));
+  } catch (error) {
+    console.error('保存统计数据失败:', error);
+  }
+};
 
 // 更新图表数据
 const updateCharts = () => {

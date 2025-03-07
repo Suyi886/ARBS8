@@ -291,6 +291,45 @@
         </el-descriptions-item>
       </el-descriptions>
       
+      <!-- 支付凭证或身份证明 -->
+      <div v-if="detailDialog.order?.type === 'recharge' && detailDialog.order?.paymentProof" class="proof-section">
+        <h3>支付凭证</h3>
+        <div class="proof-image-container">
+          <el-image 
+            :src="detailDialog.order.paymentProof" 
+            :preview-src-list="[detailDialog.order.paymentProof]"
+            fit="contain"
+            class="proof-image"
+          >
+            <template #error>
+              <div class="image-error">
+                <el-icon><Picture /></el-icon>
+                <div>图片加载失败</div>
+              </div>
+            </template>
+          </el-image>
+        </div>
+      </div>
+      
+      <div v-if="detailDialog.order?.type === 'withdraw' && detailDialog.order?.idProof" class="proof-section">
+        <h3>身份证明</h3>
+        <div class="proof-image-container">
+          <el-image 
+            :src="detailDialog.order.idProof" 
+            :preview-src-list="[detailDialog.order.idProof]"
+            fit="contain"
+            class="proof-image"
+          >
+            <template #error>
+              <div class="image-error">
+                <el-icon><Picture /></el-icon>
+                <div>图片加载失败</div>
+              </div>
+            </template>
+          </el-image>
+        </div>
+      </div>
+      
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailDialog.visible = false">关闭</el-button>
@@ -307,13 +346,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { 
   Download, 
   Refresh, 
   Search, 
   Delete,
-  Plus
+  Plus,
+  Picture
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { webSocketService } from '@/utils/websocket'
@@ -853,5 +893,41 @@ const addTestOrder = () => {
     margin-bottom: 10px;
     width: 100%;
   }
+}
+
+.proof-section {
+  margin-top: 20px;
+  border-top: 1px solid #ebeef5;
+  padding-top: 15px;
+}
+
+.proof-image-container {
+  margin-top: 10px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.proof-image {
+  max-width: 100%;
+  max-height: 400px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.image-error {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  color: #909399;
+  font-size: 14px;
+}
+
+.image-error .el-icon {
+  font-size: 48px;
+  margin-bottom: 10px;
 }
 </style> 

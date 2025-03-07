@@ -18,7 +18,7 @@
             :model="withdrawForm" 
             :rules="rules" 
             ref="withdrawFormRef" 
-            label-width="100px"
+            label-width="120px"
             class="withdraw-form"
           >
             <div class="account-balance">
@@ -72,6 +72,27 @@
               />
             </el-form-item>
             
+            <el-form-item label="身份证明">
+              <el-upload
+                class="id-proof-upload"
+                :action="'#'"
+                :auto-upload="false"
+                :limit="1"
+                :on-change="handleIdProofChange"
+                :on-remove="handleIdProofRemove"
+                :file-list="idProofImageList"
+              >
+                <el-button type="primary">
+                  <el-icon><Upload /></el-icon> 上传身份证明
+                </el-button>
+                <template #tip>
+                  <div class="el-upload__tip">
+                    请上传您的身份证或银行卡照片，作为提现身份验证。仅支持JPG/PNG格式，大小不超过5MB
+                  </div>
+                </template>
+              </el-upload>
+            </el-form-item>
+            
             <el-divider>
               <el-icon><InfoFilled /></el-icon>
               温馨提示
@@ -106,6 +127,13 @@
             <el-descriptions-item label="提现说明">{{ withdrawForm.remark || '无' }}</el-descriptions-item>
           </el-descriptions>
           
+          <div class="id-proof-preview" v-if="idProofImageBase64">
+            <h3>身份证明材料</h3>
+            <div class="proof-image">
+              <img :src="idProofImageBase64" alt="身份证明" />
+            </div>
+          </div>
+          
           <div class="confirm-actions">
             <el-button @click="activeStep = 0">返回修改</el-button>
             <el-button type="primary" @click="submitWithdraw" :loading="submitting">
@@ -129,6 +157,13 @@
             <p>订单号：{{ generatedOrderNumber }}</p>
             <p>提现金额：{{ withdrawForm.amount.toFixed(2) }} 元</p>
             <p>预计到账时间：工作时间内1小时内，非工作时间次日处理</p>
+          </div>
+          
+          <div class="id-proof-preview" v-if="idProofImageBase64">
+            <h3>您提交的身份证明</h3>
+            <div class="proof-image">
+              <img :src="idProofImageBase64" alt="身份证明" />
+            </div>
           </div>
           
           <div class="result-actions">
@@ -210,14 +245,15 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import type { FormInstance } from 'element-plus';
+import type { FormInstance, UploadUserFile } from 'element-plus';
 import { 
   Edit, 
   Document, 
   Check, 
   InfoFilled, 
   CircleCheck, 
-  Plus 
+  Plus,
+  Upload
 } from '@element-plus/icons-vue';
 import { webSocketService } from '@/utils/websocket';
 import { submitWithdraw as apiSubmitWithdraw } from '@/utils/api';
@@ -272,6 +308,10 @@ const bankCardDialog = reactive({
   visible: false,
   selectedId: bankCards.value[0].id
 });
+
+// 身份证明相关
+const idProofImageList = ref<UploadUserFile[]>([]);
+const idProofImageBase64 = ref<string>('');
 
 // 表单验证规则
 const rules = {
@@ -367,6 +407,41 @@ const confirmSelectCard = () => {
   bankCardDialog.visible = false;
 };
 
+// 处理身份证明文件上传变化
+const handleIdProofChange = (file: UploadUserFile) => {
+  // 检查文件类型
+  const isImage = file.raw?.type === 'image/jpeg' || file.raw?.type === 'image/png';
+  if (!isImage) {
+    ElMessage.error('只能上传JPG或PNG格式的图片！');
+    idProofImageList.value = idProofImageList.value.filter(item => item.uid !== file.uid);
+    return false;
+  }
+  
+  // 检查文件大小 (5MB = 5 * 1024 * 1024)
+  const isLt5M = file.raw && file.raw.size / 1024 / 1024 < 5;
+  if (!isLt5M) {
+    ElMessage.error('图片大小不能超过5MB！');
+    idProofImageList.value = idProofImageList.value.filter(item => item.uid !== file.uid);
+    return false;
+  }
+  
+  // 将文件转为base64
+  if (file.raw) {
+    const reader = new FileReader();
+    reader.readAsDataURL(file.raw);
+    reader.onload = (e) => {
+      idProofImageBase64.value = e.target?.result as string;
+    };
+  }
+  
+  return true;
+};
+
+// 处理文件移除
+const handleIdProofRemove = () => {
+  idProofImageBase64.value = '';
+};
+
 // 下一步
 const nextStep = async () => {
   if (!withdrawFormRef.value) return;
@@ -377,6 +452,13 @@ const nextStep = async () => {
     if (!selectedCard.value) {
       ElMessage.warning('请选择收款银行卡');
       return;
+    }
+    
+    // 检查是否上传了身份证明（可选，但推荐）
+    if (idProofImageList.value.length === 0) {
+      ElMessage.warning('建议上传身份证明，以便我们更快处理您的提现申请');
+      // 这里可以选择是否阻止提交
+      // return;
     }
     
     // 进入下一步
@@ -408,7 +490,8 @@ const submitWithdraw = async () => {
       amount: withdrawForm.amount.toFixed(2),
       bankCard: selectedCard.value ? selectedCard.value.cardNumber : '',
       bankName: selectedCard.value ? selectedCard.value.bankName : '',
-      remark: withdrawForm.remark || ''
+      remark: withdrawForm.remark || '',
+      idProof: idProofImageBase64.value // 添加身份证明
     };
     
     // 使用API服务发送提现请求
@@ -442,7 +525,7 @@ const submitWithdraw = async () => {
     }
     
     // 添加新订单
-    const newOrder = {
+    realOrders.push({
       id: Date.now(),
       orderNumber: generatedOrderNumber.value,
       type: 'withdraw',
@@ -455,11 +538,9 @@ const submitWithdraw = async () => {
       remark: withdrawForm.remark || '用户提现申请',
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0],
-      updatedBy: '客户'
-    };
-    
-    // 保存到订单列表
-    realOrders.push(newOrder);
+      updatedBy: '客户',
+      idProof: idProofImageBase64.value // 添加身份证明
+    });
     
     // 保存回localStorage
     localStorage.setItem('realOrders', JSON.stringify(realOrders));
@@ -496,6 +577,9 @@ const resetForm = () => {
   }
   activeStep.value = 0;
   generatedOrderNumber.value = '';
+  selectedCard.value = bankCards.value[0];
+  idProofImageList.value = []; // 清空图片列表
+  idProofImageBase64.value = ''; // 清空图片base64
 };
 
 // 查看当前订单
@@ -807,5 +891,29 @@ const getStatusLabel = (status: string) => {
   .confirm-actions button, .result-actions button {
     width: 100%;
   }
+}
+
+.id-proof-upload {
+  width: 100%;
+}
+
+.id-proof-preview {
+  margin: 20px 0;
+}
+
+.proof-image {
+  max-width: 300px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 5px;
+  margin-top: 10px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.proof-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 2px;
 }
 </style> 
