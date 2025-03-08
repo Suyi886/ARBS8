@@ -40,10 +40,71 @@ const authenticateToken = (req, res, next) => {
 
 // 检查管理员权限中间件
 const checkAdmin = (req, res, next) => {
+  console.log('检查管理员权限:', req.user);
   if (req.user.role !== 'admin') {
+    console.log('拒绝访问: 用户不是管理员');
     return res.status(403).json({ message: '需要管理员权限' });
   }
+  console.log('授权管理员访问');
   next();
+};
+
+// 在API定义之前添加数据库验证
+// 验证数据库连接和表结构
+const validateDatabase = async () => {
+  try {
+    console.log('验证数据库连接...');
+    
+    // 检查连接
+    const connection = await pool.getConnection();
+    console.log('数据库连接成功');
+    
+    // 检查users表结构
+    const [tables] = await connection.query(
+      "SHOW TABLES LIKE 'users'"
+    );
+    
+    if (tables.length === 0) {
+      console.log('users表不存在，创建表...');
+      await connection.query(`
+        CREATE TABLE users (
+          id BIGINT NOT NULL AUTO_INCREMENT,
+          username VARCHAR(50) NOT NULL,
+          password VARCHAR(60) NOT NULL,
+          role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          UNIQUE KEY (username)
+        )
+      `);
+      console.log('users表创建成功');
+    } else {
+      console.log('users表已存在');
+      
+      // 检查表字段
+      const [columns] = await connection.query(
+        "SHOW COLUMNS FROM users"
+      );
+      
+      console.log('users表结构:', columns.map(col => `${col.Field} (${col.Type})`).join(', '));
+    }
+    
+    // 检查是否有管理员用户
+    const [admins] = await connection.query(
+      "SELECT COUNT(*) as count FROM users WHERE role = 'admin'"
+    );
+    
+    console.log(`现有管理员用户: ${admins[0].count}个`);
+    
+    // 释放连接
+    connection.release();
+    
+    return true;
+  } catch (error) {
+    console.error('数据库验证失败:', error);
+    return false;
+  }
 };
 
 // 用户注册
@@ -51,8 +112,16 @@ app.post('/api/register', async (req, res) => {
   try {
     const { username, password, role } = req.body;
     
+    console.log('收到注册请求:', { 
+      username, 
+      passwordLength: password ? password.length : 0,
+      role,
+      body: JSON.stringify(req.body)
+    });
+    
     // 验证输入
     if (!username || !password) {
+      console.log('注册失败: 用户名或密码为空');
       return res.status(400).json({ message: '用户名和密码不能为空' });
     }
     
@@ -63,28 +132,43 @@ app.post('/api/register', async (req, res) => {
     );
     
     if (existingUsers.length > 0) {
+      console.log('注册失败: 用户名已存在');
       return res.status(409).json({ message: '用户名已存在' });
     }
     
     // 哈希密码
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    // 使用提交的角色，将'client'映射到'user'，保持'admin'不变
-    const userRole = role === 'client' ? 'user' : role === 'admin' ? 'admin' : 'user';
+    // 验证角色值是否有效（必须是'user'或'admin'）
+    const validRoles = ['user', 'admin'];
+    const userRole = validRoles.includes(role) ? role : 'user';
+    
+    console.log('即将创建用户，角色:', userRole);
     
     // 创建用户
-    const [result] = await pool.query(
-      'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-      [username, hashedPassword, userRole]
-    );
-    
-    res.status(201).json({
-      message: '用户创建成功',
-      userId: result.insertId
-    });
+    try {
+      const [result] = await pool.query(
+        'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+        [username, hashedPassword, userRole]
+      );
+      
+      console.log('用户创建成功:', { id: result.insertId, username, role: userRole });
+      
+      res.status(201).json({
+        message: '用户创建成功',
+        userId: result.insertId
+      });
+    } catch (dbError) {
+      console.error('数据库插入错误:', dbError);
+      return res.status(500).json({ 
+        message: '创建用户失败: ' + dbError.message, 
+        error: dbError.message,
+        code: dbError.code 
+      });
+    }
   } catch (error) {
     console.error('注册错误:', error);
-    res.status(500).json({ message: '服务器错误' });
+    res.status(500).json({ message: '服务器错误: ' + error.message, error: error.message });
   }
 });
 
@@ -93,8 +177,11 @@ app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     
+    console.log('收到登录请求:', { username }); // 不记录密码
+    
     // 验证输入
     if (!username || !password) {
+      console.log('登录失败: 用户名或密码为空');
       return res.status(400).json({ message: '用户名和密码不能为空' });
     }
     
@@ -105,14 +192,17 @@ app.post('/api/login', async (req, res) => {
     );
     
     if (users.length === 0) {
+      console.log('登录失败: 用户不存在');
       return res.status(401).json({ message: '用户名或密码错误' });
     }
     
     const user = users[0];
+    console.log('找到用户:', { id: user.id, username: user.username, role: user.role });
     
     // 验证密码
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
+      console.log('登录失败: 密码不匹配');
       return res.status(401).json({ message: '用户名或密码错误' });
     }
     
@@ -127,6 +217,8 @@ app.post('/api/login', async (req, res) => {
       { expiresIn: '24h' }
     );
     
+    console.log('登录成功:', { id: user.id, username: user.username, role: user.role });
+    
     // 返回用户信息和令牌
     res.json({
       message: '登录成功',
@@ -140,7 +232,7 @@ app.post('/api/login', async (req, res) => {
     });
   } catch (error) {
     console.error('登录错误:', error);
-    res.status(500).json({ message: '服务器错误' });
+    res.status(500).json({ message: '服务器错误', error: error.message });
   }
 });
 
@@ -333,7 +425,15 @@ app.post('/api/migrate-users', async (req, res) => {
   }
 });
 
-// 启动服务器
-app.listen(PORT, () => {
-  console.log(`服务器运行在端口 ${PORT}`);
+// 在启动服务器之前验证数据库
+validateDatabase().then(success => {
+  if (success) {
+    // 启动服务器
+    app.listen(PORT, () => {
+      console.log(`服务器运行在端口 ${PORT}`);
+    });
+  } else {
+    console.error('由于数据库验证失败，服务器未启动');
+    process.exit(1);
+  }
 }); 

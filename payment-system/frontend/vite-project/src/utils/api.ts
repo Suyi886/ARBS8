@@ -50,8 +50,26 @@ api.interceptors.response.use(
 const apiService = {
   // 用户注册
   register: async (userData: { username: string; password: string; role?: string }) => {
-    const response = await api.post('/register', userData);
-    return response.data;
+    // 确保角色值正确传递
+    const requestData = {
+      username: userData.username,
+      password: userData.password,
+      role: userData.role || 'user' // 确保有默认值
+    };
+    
+    console.log('注册请求数据:', JSON.stringify(requestData)); // 添加日志，查看请求数据
+    try {
+      const response = await api.post('/register', requestData);
+      console.log('注册响应:', response.data); // 添加日志，查看响应
+      return response.data;
+    } catch (error: any) {
+      console.error('注册API错误:', error); 
+      // 更详细的错误信息
+      if (error.response) {
+        console.error('服务器响应:', error.response.status, error.response.data);
+      }
+      throw error;
+    }
   },
   
   // 用户登录

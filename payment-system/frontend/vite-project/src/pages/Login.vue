@@ -47,6 +47,17 @@
               登录
             </el-button>
           </el-form-item>
+
+          <!-- 添加注册链接 -->
+          <div class="form-footer">
+            <el-button 
+              type="text" 
+              @click="goToRegister"
+              class="register-link"
+            >
+              没有账号？立即注册
+            </el-button>
+          </div>
         </el-form>
       </el-card>
     </div>
@@ -104,6 +115,10 @@ const handleLogin = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const goToRegister = () => {
+  router.push('/register')
 }
 </script>
 
@@ -207,5 +222,20 @@ h2 {
   padding: 12px 0;
   font-size: 16px;
   border-radius: 8px;
+}
+
+.form-footer {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.register-link {
+  color: #1976d2;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  outline: inherit;
 }
 </style>

@@ -5,8 +5,9 @@
         <el-card class="register-card">
           <template #header>
             <div class="card-header">
-              <h2>ARBS8 系统注册</h2>
-              <p class="subtitle">创建您的账户，开始使用系统</p>
+              <h2>ARBS8 用户注册</h2>
+              <p class="subtitle">创建您的普通用户账户，开始使用系统</p>
+              <p class="user-hint">注意：此页面仅供普通用户注册使用</p>
             </div>
           </template>
           
@@ -45,13 +46,6 @@
                 show-password
                 class="custom-input"
               />
-            </el-form-item>
-            
-            <el-form-item prop="role">
-              <el-radio-group v-model="registerForm.role" class="role-selection">
-                <el-radio label="client">注册为客户</el-radio>
-                <el-radio label="admin">注册为管理员</el-radio>
-              </el-radio-group>
             </el-form-item>
             
             <el-form-item>
@@ -96,7 +90,7 @@
     username: '',
     password: '',
     confirmPassword: '',
-    role: 'client' // 默认选择客户角色
+    role: 'user' // 默认且唯一可选的角色就是用户
   })
   
   const validatePass = (rule: any, value: string, callback: any) => {
@@ -121,9 +115,6 @@
     confirmPassword: [
       { required: true, message: '请确认密码', trigger: 'blur' },
       { validator: validatePass, trigger: 'blur' }
-    ],
-    role: [
-      { required: true, message: '请选择角色', trigger: 'change' }
     ]
   }
   
@@ -133,6 +124,12 @@
     try {
       loading.value = true
       await registerFormRef.value.validate()
+      
+      // 显示注册请求信息
+      console.log('提交注册表单:', {
+        username: registerForm.username,
+        role: registerForm.role
+      })
       
       // 使用userStore中的register方法进行注册
       await userStore.register(
@@ -146,7 +143,13 @@
       
     } catch (error: any) {
       console.error('注册失败:', error)
-      ElMessage.error(userStore.error || '注册失败，请检查输入信息')
+      
+      // 显示更详细的错误信息
+      if (error.response && error.response.data) {
+        ElMessage.error(error.response.data.message || '注册失败，请检查服务器连接');
+      } else {
+        ElMessage.error(userStore.error || '注册失败，请检查输入信息');
+      }
     } finally {
       loading.value = false
     }
@@ -230,6 +233,13 @@
     color: #607d8b;
     font-size: 14px;
     font-weight: normal;
+  }
+  
+  .user-hint {
+    margin-top: 5px;
+    color: #f56c6c;
+    font-size: 12px;
+    font-style: italic;
   }
   
   .register-form {

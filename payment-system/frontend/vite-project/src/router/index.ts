@@ -16,6 +16,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false }
   },
   {
+    path: '/register',
+    name: 'Register', 
+    component: () => import('@/pages/Register.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/home',
     name: 'Home',
     component: () => import('@/pages/Home.vue'),
@@ -25,7 +31,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/secure-registration-xK7p9Z',
     name: 'SecureRegister',
-    component: () => import('@/pages/Register.vue'),
+    component: () => import('@/pages/SecureRegistration.vue'),
     meta: { requiresAuth: false }
   },
   // 管理员后台路由

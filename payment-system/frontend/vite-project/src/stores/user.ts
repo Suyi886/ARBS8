@@ -73,7 +73,11 @@ export const useUserStore = defineStore('user', {
       this.error = null
       
       try {
-        const result = await apiService.register({ username, password, role })
+        const result = await apiService.register({ 
+          username, 
+          password, 
+          role: role || 'user'
+        })
         return result
       } catch (error: any) {
         this.error = error.response?.data?.message || '注册失败'
