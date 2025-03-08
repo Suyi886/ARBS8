@@ -9,9 +9,27 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = 'your-secret-key'; // 在生产环境中应使用环境变量
 
+// 打印环境变量信息，帮助调试
+console.log('======= 环境变量信息 =======');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('USE_LOCAL_STORAGE:', process.env.USE_LOCAL_STORAGE);
+console.log('============================');
+
 // 添加一个辅助函数，检查是否使用本地存储模式
 const useLocalStorage = () => {
-  return process.env.USE_LOCAL_STORAGE === 'true';
+  // 检查是否在Render环境中运行
+  const isRenderEnvironment = process.env.RENDER === 'true';
+  
+  // 强制Render环境使用本地存储
+  if (isRenderEnvironment) {
+    console.log('检测到Render环境，强制使用本地存储模式');
+    return true;
+  }
+  
+  const usingLocalStorage = process.env.USE_LOCAL_STORAGE === 'true';
+  console.log('是否使用本地存储模式:', usingLocalStorage);
+  return usingLocalStorage;
 };
 
 // 中间件
