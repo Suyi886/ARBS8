@@ -17,7 +17,7 @@ app.use(bodyParser.json());
 const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',
-  password: 'your-password', // 替换为你的MySQL密码
+  password: 'Ax112211', // 替换为你的MySQL密码
   database: 'payment_system',
   waitForConnections: true,
   connectionLimit: 10,
@@ -52,42 +52,58 @@ const checkAdmin = (req, res, next) => {
 // 在API定义之前添加数据库验证
 // 验证数据库连接和表结构
 const validateDatabase = async () => {
+  console.log('开始验证数据库连接和结构...');
+  
   try {
-    console.log('验证数据库连接...');
-    
-    // 检查连接
+    // 测试数据库连接
     const connection = await pool.getConnection();
-    console.log('数据库连接成功');
+    console.log('✅ MySQL数据库连接成功');
+    connection.release();
     
-    // 检查users表结构
+    // 检查users表是否存在
     const [tables] = await connection.query(
       "SHOW TABLES LIKE 'users'"
     );
     
     if (tables.length === 0) {
-      console.log('users表不存在，创建表...');
+      console.log('users表不存在，正在创建...');
+      
+      // 创建users表
       await connection.query(`
         CREATE TABLE users (
-          id BIGINT NOT NULL AUTO_INCREMENT,
-          username VARCHAR(50) NOT NULL,
-          password VARCHAR(60) NOT NULL,
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          username VARCHAR(255) NOT NULL UNIQUE,
+          password VARCHAR(255) NOT NULL,
           role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (id),
-          UNIQUE KEY (username)
-        )
+          status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+          balance DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `);
-      console.log('users表创建成功');
+      
+      console.log('✅ users表创建成功');
     } else {
-      console.log('users表已存在');
+      console.log('✅ users表已存在');
       
-      // 检查表字段
-      const [columns] = await connection.query(
-        "SHOW COLUMNS FROM users"
-      );
-      
-      console.log('users表结构:', columns.map(col => `${col.Field} (${col.Type})`).join(', '));
+      // 检查表结构，确保role字段正确
+      try {
+        const [columns] = await connection.query("SHOW COLUMNS FROM users WHERE Field = 'role'");
+        if (columns.length === 0) {
+          console.log('缺少role字段，正在添加...');
+          await connection.query("ALTER TABLE users ADD role ENUM('user', 'admin') NOT NULL DEFAULT 'user' AFTER password");
+          console.log('✅ role字段添加成功');
+        } else {
+          console.log('✅ role字段已存在:', columns[0].Type);
+          // 如果role字段类型不正确，修改它
+          if (!columns[0].Type.includes("enum('user','admin')")) {
+            console.log('role字段类型不正确，正在修改...');
+            await connection.query("ALTER TABLE users MODIFY role ENUM('user', 'admin') NOT NULL DEFAULT 'user'");
+            console.log('✅ role字段类型修改成功');
+          }
+        }
+      } catch (tableError) {
+        console.error('检查表结构时出错:', tableError);
+      }
     }
     
     // 检查是否有管理员用户
@@ -96,9 +112,6 @@ const validateDatabase = async () => {
     );
     
     console.log(`现有管理员用户: ${admins[0].count}个`);
-    
-    // 释放连接
-    connection.release();
     
     return true;
   } catch (error) {
@@ -110,38 +123,51 @@ const validateDatabase = async () => {
 // 用户注册
 app.post('/api/register', async (req, res) => {
   try {
+    console.log('--------- 开始处理注册请求 ---------');
     const { username, password, role } = req.body;
     
     console.log('收到注册请求:', { 
       username, 
       passwordLength: password ? password.length : 0,
       role,
+      bodyType: typeof req.body,
       body: JSON.stringify(req.body)
     });
     
     // 验证输入
     if (!username || !password) {
-      console.log('注册失败: 用户名或密码为空');
+      console.log('❌ 注册失败: 用户名或密码为空');
       return res.status(400).json({ message: '用户名和密码不能为空' });
     }
     
     // 检查用户名是否已存在
-    const [existingUsers] = await pool.query(
-      'SELECT * FROM users WHERE username = ?',
-      [username]
-    );
-    
-    if (existingUsers.length > 0) {
-      console.log('注册失败: 用户名已存在');
-      return res.status(409).json({ message: '用户名已存在' });
+    try {
+      const [existingUsers] = await pool.query(
+        'SELECT * FROM users WHERE username = ?',
+        [username]
+      );
+      
+      if (existingUsers.length > 0) {
+        console.log('❌ 注册失败: 用户名已存在');
+        return res.status(409).json({ message: '用户名已存在' });
+      }
+    } catch (checkError) {
+      console.error('❌ 检查用户名时出错:', checkError);
+      return res.status(500).json({ message: '检查用户名时出错', error: checkError.message });
     }
     
     // 哈希密码
-    const hashedPassword = await bcrypt.hash(password, 10);
+    let hashedPassword;
+    try {
+      hashedPassword = await bcrypt.hash(password, 10);
+    } catch (hashError) {
+      console.error('❌ 密码哈希失败:', hashError);
+      return res.status(500).json({ message: '密码处理失败', error: hashError.message });
+    }
     
     // 验证角色值是否有效（必须是'user'或'admin'）
     const validRoles = ['user', 'admin'];
-    const userRole = validRoles.includes(role) ? role : 'user';
+    const userRole = role && validRoles.includes(role) ? role : 'user';
     
     console.log('即将创建用户，角色:', userRole);
     
@@ -152,14 +178,14 @@ app.post('/api/register', async (req, res) => {
         [username, hashedPassword, userRole]
       );
       
-      console.log('用户创建成功:', { id: result.insertId, username, role: userRole });
+      console.log('✅ 用户创建成功:', { id: result.insertId, username, role: userRole });
       
-      res.status(201).json({
+      return res.status(201).json({
         message: '用户创建成功',
         userId: result.insertId
       });
     } catch (dbError) {
-      console.error('数据库插入错误:', dbError);
+      console.error('❌ 数据库插入错误:', dbError);
       return res.status(500).json({ 
         message: '创建用户失败: ' + dbError.message, 
         error: dbError.message,
@@ -167,8 +193,10 @@ app.post('/api/register', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('注册错误:', error);
-    res.status(500).json({ message: '服务器错误: ' + error.message, error: error.message });
+    console.error('❌ 注册过程中发生未预期错误:', error);
+    return res.status(500).json({ message: '服务器错误: ' + error.message, error: error.message });
+  } finally {
+    console.log('--------- 注册请求处理完成 ---------');
   }
 });
 
