@@ -14,8 +14,10 @@
 </template>
 
 <script setup lang="ts">
-import { onErrorCaptured } from 'vue'
+import { onErrorCaptured, onMounted } from 'vue'
 import { useModuleStore } from '@/stores/module'
+import { useUserStore } from './stores/user'
+import { useI18n } from 'vue-i18n'
 
 // 错误处理
 onErrorCaptured((err) => {
@@ -30,6 +32,26 @@ const retry = () => {
 
 const moduleStore = useModuleStore()
 console.log(moduleStore.modules)
+
+const userStore = useUserStore()
+const i18n = useI18n()
+
+// 初始化时从本地存储加载语言偏好
+const initLanguage = () => {
+  const savedLanguage = localStorage.getItem('preferred-language')
+  if (savedLanguage) {
+    i18n.locale.value = savedLanguage
+    document.documentElement.lang = savedLanguage
+  }
+}
+
+onMounted(() => {
+  // 初始化语言
+  initLanguage()
+  
+  // 其他初始化...
+  // ...
+})
 </script>
 
 <style>

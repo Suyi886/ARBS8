@@ -1,20 +1,21 @@
 <template>
   <div class="customer-management">
     <div class="page-header">
-      <h2>客户管理</h2>
+      <h2>{{ $t('customer.management') }}</h2>
       <div class="header-actions">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索客户名称/ID"
+          :placeholder="$t('customer.search')"
           class="search-input"
           prefix-icon="Search"
           clearable
           @clear="handleSearch"
           @input="handleSearch"
         />
+        <language-switcher class="language-switcher-container" />
         <el-button type="primary" @click="handleCreateCustomer">
           <el-icon><Plus /></el-icon>
-          添加客户
+          {{ $t('customer.add') }}
         </el-button>
       </div>
     </div>
@@ -28,7 +29,7 @@
               <el-icon><User /></el-icon>
             </div>
             <div class="stat-content">
-              <div class="stat-title">客户总数</div>
+              <div class="stat-title">{{ $t('customer.total') }}</div>
               <div class="stat-value">{{ stats.totalCustomers }}</div>
             </div>
           </el-card>
@@ -40,7 +41,7 @@
               <el-icon><Check /></el-icon>
             </div>
             <div class="stat-content">
-              <div class="stat-title">活跃客户</div>
+              <div class="stat-title">{{ $t('customer.active') }}</div>
               <div class="stat-value">{{ stats.activeCustomers }}</div>
             </div>
           </el-card>
@@ -52,7 +53,7 @@
               <el-icon><Star /></el-icon>
             </div>
             <div class="stat-content">
-              <div class="stat-title">今日新增</div>
+              <div class="stat-title">{{ $t('customer.newAdded') }}</div>
               <div class="stat-value">{{ stats.newCustomers }}</div>
             </div>
           </el-card>
@@ -64,12 +65,12 @@
     <el-card class="customer-list-card" shadow="hover">
       <template #header>
         <div class="card-header">
-          <div class="header-title">客户列表</div>
+          <div class="header-title">{{ $t('customer.list') }}</div>
           <div class="header-filters">
-            <el-select v-model="statusFilter" placeholder="全部状态" class="filter-select">
-              <el-option label="全部状态" value="" />
-              <el-option label="活跃" value="active" />
-              <el-option label="非活跃" value="inactive" />
+            <el-select v-model="statusFilter" :placeholder="$t('customer.status.all')" class="filter-select">
+              <el-option :label="$t('customer.status.all')" value="" />
+              <el-option :label="$t('customer.status.active')" value="active" />
+              <el-option :label="$t('customer.status.inactive')" value="inactive" />
             </el-select>
           </div>
         </div>
@@ -381,6 +382,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, User, Check, Star, Search } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import apiService from '@/utils/api'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 
 // 定义客户类型接口
 interface Customer {
@@ -1263,6 +1265,10 @@ const cleanupFakeOrderData = () => {
   text-align: center;
 }
 
+.language-switcher-container {
+  margin-right: 15px;
+}
+
 @media (max-width: 768px) {
   .page-header {
     flex-direction: column;
@@ -1298,6 +1304,10 @@ const cleanupFakeOrderData = () => {
   
   .stat-value {
     font-size: 24px;
+  }
+
+  .language-switcher-container {
+    margin: 10px 0;
   }
 }
 
