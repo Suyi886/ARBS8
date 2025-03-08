@@ -9,6 +9,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = 'your-secret-key'; // 在生产环境中应使用环境变量
 
+// 添加一个辅助函数，检查是否使用本地存储模式
+const useLocalStorage = () => {
+  return process.env.USE_LOCAL_STORAGE === 'true';
+};
+
 // 中间件
 app.use(cors());
 app.use(bodyParser.json());
@@ -123,14 +128,13 @@ const validateDatabase = async () => {
 // 用户注册
 app.post('/api/register', async (req, res) => {
   try {
-    console.log('--------- 开始处理注册请求 ---------');
+    console.log('------- 开始用户注册 -------');
     const { username, password, role } = req.body;
     
     console.log('收到注册请求:', { 
       username, 
       passwordLength: password ? password.length : 0,
       role,
-      bodyType: typeof req.body,
       body: JSON.stringify(req.body)
     });
     
@@ -140,6 +144,59 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ message: '用户名和密码不能为空' });
     }
     
+    // 如果使用本地存储模式，则不使用数据库，直接存储到内存或文件
+    if (useLocalStorage()) {
+      console.log('使用本地存储模式注册用户');
+      
+      try {
+        // 哈希密码
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // 验证角色值是否有效
+        const validRoles = ['user', 'admin'];
+        const userRole = role && validRoles.includes(role) ? role : 'user';
+        
+        // 创建新用户对象
+        const newUser = {
+          id: Date.now(), // 使用时间戳作为ID
+          username,
+          password: hashedPassword,
+          role: userRole,
+          status: 'active',
+          balance: 0,
+          created_at: new Date().toISOString()
+        };
+        
+        // 获取现有用户列表
+        let users = [];
+        const storedUsers = req.app.locals.users || [];
+        users = [...storedUsers];
+        
+        // 检查用户名是否已存在
+        if (users.some(u => u.username === username)) {
+          console.log('❌ 本地存储注册失败: 用户名已存在');
+          return res.status(409).json({ message: '用户名已存在' });
+        }
+        
+        // 添加新用户
+        users.push(newUser);
+        
+        // 保存回应用本地存储
+        req.app.locals.users = users;
+        
+        console.log('✅ 本地存储用户创建成功:', { id: newUser.id, username, role: userRole });
+        
+        return res.status(201).json({
+          message: '用户创建成功',
+          userId: newUser.id
+        });
+      } catch (localError) {
+        console.error('❌ 本地存储注册错误:', localError);
+        return res.status(500).json({ message: '本地存储注册失败', error: localError.message });
+      }
+    }
+    
+    // 以下是原有的数据库注册逻辑
     // 检查用户名是否已存在
     try {
       const [existingUsers] = await pool.query(
@@ -213,6 +270,53 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ message: '用户名和密码不能为空' });
     }
     
+    // 如果使用本地存储模式
+    if (useLocalStorage()) {
+      console.log('使用本地存储模式登录');
+      
+      // 从应用本地存储获取用户
+      const users = req.app.locals.users || [];
+      const user = users.find(u => u.username === username);
+      
+      if (!user) {
+        console.log('本地存储登录失败: 用户不存在');
+        return res.status(401).json({ message: '用户名或密码错误' });
+      }
+      
+      // 验证密码
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        console.log('本地存储登录失败: 密码错误');
+        return res.status(401).json({ message: '用户名或密码错误' });
+      }
+      
+      // 生成JWT令牌
+      const token = jwt.sign(
+        { id: user.id, username: user.username, role: user.role },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      
+      console.log('本地存储登录成功:', { username, role: user.role });
+      
+      // 更新用户最后登录时间
+      user.lastLoginAt = new Date().toISOString();
+      
+      // 返回令牌和用户信息
+      return res.json({
+        message: '登录成功',
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          status: user.status,
+          balance: user.balance
+        }
+      });
+    }
+    
+    // 以下是原有的数据库登录逻辑
     // 查找用户
     const [users] = await pool.query(
       'SELECT * FROM users WHERE username = ?',
@@ -268,6 +372,31 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/users', authenticateToken, async (req, res) => {
   try {
     console.log('获取所有用户请求');
+    
+    // 如果使用本地存储模式
+    if (useLocalStorage()) {
+      console.log('使用本地存储模式获取用户列表');
+      
+      // 从应用本地存储获取用户
+      const allUsers = req.app.locals.users || [];
+      
+      // 排除当前用户
+      const users = allUsers.filter(user => user.id !== req.user.id);
+      
+      console.log(`本地存储中找到 ${users.length} 个用户`);
+      
+      // 格式化用户数据
+      const formattedUsers = users.map(user => ({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        status: user.status,
+        balance: user.balance || 0,
+        createdAt: user.created_at
+      }));
+      
+      return res.json({ users: formattedUsers });
+    }
     
     // 查询所有用户，但排除当前用户（防止管理员删除自己）
     const [users] = await pool.query(
@@ -412,7 +541,87 @@ app.post('/api/migrate-users', async (req, res) => {
       details: []
     };
     
-    // 处理每个用户
+    // 如果使用本地存储模式
+    if (useLocalStorage()) {
+      console.log('使用本地存储模式迁移用户');
+      
+      // 获取现有用户列表
+      const existingUsers = req.app.locals.users || [];
+      const existingUsernames = new Set(existingUsers.map(u => u.username));
+      
+      // 处理每个用户
+      for (const user of users) {
+        try {
+          console.log(`开始处理用户: ${user.username}, 角色: ${user.role}`);
+          
+          // 检查用户名是否已存在
+          if (existingUsernames.has(user.username)) {
+            console.log(`用户 ${user.username} 已存在，跳过`);
+            results.failed++;
+            results.details.push({
+              username: user.username,
+              status: 'failed',
+              reason: '用户名已存在'
+            });
+            continue;
+          }
+          
+          // 确保角色值是有效的
+          let userRole = 'user';
+          if (user.role === 'admin') {
+            userRole = 'admin';
+          }
+          
+          console.log(`用户 ${user.username} 的角色将设置为: ${userRole}`);
+          
+          // 哈希密码
+          const hashedPassword = await bcrypt.hash(user.password || '123456', 10);
+          
+          // 创建新用户对象
+          const newUser = {
+            id: Date.now() + Math.floor(Math.random() * 1000), // 使用时间戳+随机数作为ID
+            username: user.username,
+            password: hashedPassword,
+            role: userRole,
+            status: 'active',
+            balance: user.balance || 0,
+            created_at: user.createdAt || new Date().toISOString()
+          };
+          
+          // 添加到存储
+          existingUsers.push(newUser);
+          existingUsernames.add(user.username);
+          
+          console.log(`用户 ${user.username} 迁移成功`);
+          results.success++;
+          results.details.push({
+            username: user.username,
+            status: 'success'
+          });
+        } catch (userError) {
+          console.error(`处理用户 ${user.username} 过程中出错:`, userError);
+          results.failed++;
+          results.details.push({
+            username: user.username,
+            status: 'failed',
+            reason: `处理错误: ${userError.message}`
+          });
+        }
+      }
+      
+      // 保存更新后的用户列表
+      req.app.locals.users = existingUsers;
+      
+      console.log('------- 迁移完成 -------');
+      console.log(`总结: 成功 ${results.success} 个, 失败 ${results.failed} 个`);
+      
+      return res.json({
+        message: '用户迁移完成',
+        results
+      });
+    }
+    
+    // 处理每个用户（原有的数据库迁移代码）
     for (const user of users) {
       try {
         console.log(`开始处理用户: ${user.username}, 角色: ${user.role}`);
@@ -510,15 +719,61 @@ app.post('/api/migrate-users', async (req, res) => {
   }
 });
 
-// 在启动服务器之前验证数据库
-validateDatabase().then(success => {
-  if (success) {
-    // 启动服务器
-    app.listen(PORT, () => {
-      console.log(`服务器运行在端口 ${PORT}`);
-    });
-  } else {
-    console.error('由于数据库验证失败，服务器未启动');
-    process.exit(1);
-  }
-}); 
+// 添加环境变量检查，在Render环境中跳过数据库验证
+if (useLocalStorage()) {
+  console.log('使用本地存储模式，跳过数据库连接验证');
+  
+  // 初始化本地存储中的默认用户（管理员账户）
+  const initLocalStorage = async () => {
+    try {
+      // 如果用户列表为空，创建默认管理员账户
+      if (!app.locals.users || app.locals.users.length === 0) {
+        console.log('初始化本地存储中的默认管理员账户');
+        
+        // 创建管理员密码哈希
+        const adminPassword = await bcrypt.hash('admin123', 10);
+        
+        // 创建默认管理员
+        const adminUser = {
+          id: 1,
+          username: 'admin',
+          password: adminPassword,
+          role: 'admin',
+          status: 'active',
+          balance: 0,
+          created_at: new Date().toISOString()
+        };
+        
+        // 保存到应用本地存储
+        app.locals.users = [adminUser];
+        
+        console.log('默认管理员账户创建成功，用户名: admin, 密码: admin123');
+      } else {
+        console.log(`本地存储中已有 ${app.locals.users.length} 个用户`);
+      }
+    } catch (error) {
+      console.error('初始化本地存储失败:', error);
+    }
+  };
+  
+  // 调用初始化函数
+  initLocalStorage();
+  
+  // 直接启动服务器
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`服务器运行在端口 ${PORT} (本地存储模式)`);
+  });
+} else {
+  // 原来的数据库验证和启动代码
+  validateDatabase().then(success => {
+    if (success) {
+      // 启动服务器
+      app.listen(PORT, () => {
+        console.log(`服务器运行在端口 ${PORT}`);
+      });
+    } else {
+      console.error('由于数据库验证失败，服务器未启动');
+      process.exit(1);
+    }
+  });
+} 
