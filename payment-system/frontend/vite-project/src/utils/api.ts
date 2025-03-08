@@ -83,8 +83,21 @@ const apiService = {
   
   // 获取所有用户（管理员）
   getAllUsers: async () => {
-    const response = await api.get('/users');
-    return response.data.users;
+    try {
+      const response = await api.get('/users');
+      console.log('从API获取所有用户:', response.data);
+      return response.data.users;
+    } catch (error) {
+      console.error('获取用户列表失败:', error);
+      // 返回本地存储的用户作为备用
+      const storedUsers = localStorage.getItem('users');
+      if (storedUsers) {
+        const users = JSON.parse(storedUsers);
+        console.log('从本地存储获取用户备用数据:', users.length);
+        return users;
+      }
+      return [];
+    }
   },
   
   // 获取单个用户信息

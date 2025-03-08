@@ -375,17 +375,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { 
-  Plus, 
-  Search, 
-  User, 
-  Check, 
-  Star, 
-  Money 
-} from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox, FormInstance } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, User, Check, Star, Search } from '@element-plus/icons-vue'
+import type { FormInstance } from 'element-plus'
+import apiService from '@/utils/api'
 
 // 定义客户类型接口
 interface Customer {
@@ -557,18 +552,19 @@ onMounted(() => {
 })
 
 // 加载客户数据
-const loadCustomers = () => {
-  loading.value = true
+const loadCustomers = async () => {
+  loading.value = true;
   
   try {
-    // 从localStorage获取用户数据
-    const storedUsers = localStorage.getItem('users')
-    if (storedUsers) {
-      const allUsers = JSON.parse(storedUsers)
-      // 过滤出客户角色的用户
-      const clientUsers = allUsers.filter((user: any) => user.role === 'client').map((user: any) => {
+    // 从API获取用户数据
+    const users = await apiService.getAllUsers();
+    
+    // 过滤出普通用户（角色为user）
+    const clientUsers = users
+      .filter((user: any) => user.role === 'user')
+      .map((user: any) => {
         // 获取用户的订单数据
-        const orderStats = getUserOrderStats(user.id)
+        const orderStats = getUserOrderStats(user.id);
         
         return {
           id: user.id,
@@ -577,7 +573,7 @@ const loadCustomers = () => {
           phone: user.phone || '',
           email: user.email || '',
           status: user.status || 'active',
-          balance: orderStats.balance || 0,
+          balance: user.balance || orderStats.balance || 0,
           totalRecharge: orderStats.totalRecharge || 0,
           totalWithdraw: orderStats.totalWithdraw || 0,
           rechargeCount: orderStats.rechargeCount || 0,
@@ -585,25 +581,60 @@ const loadCustomers = () => {
           createdAt: user.createdAt || new Date().toISOString(),
           lastLoginAt: user.lastLoginAt || null,
           remark: user.remark || ''
-        } as Customer
-      })
-      
-      customers.value = clientUsers
-      console.log(`已加载 ${clientUsers.length} 个客户数据`)
-    } else {
-      customers.value = []
-      console.log('未找到客户数据')
-    }
+        } as Customer;
+      });
+    
+    customers.value = clientUsers;
+    console.log(`已加载 ${clientUsers.length} 个客户数据`);
   } catch (error) {
-    console.error('加载客户数据失败:', error)
-    customers.value = []
-    ElMessage.error('加载客户数据失败')
+    console.error('加载客户数据失败:', error);
+    // 如果API加载失败，尝试从localStorage加载
+    try {
+      const storedUsers = localStorage.getItem('users');
+      if (storedUsers) {
+        const allUsers = JSON.parse(storedUsers);
+        // 过滤出客户角色的用户
+        const clientUsers = allUsers
+          .filter((user: any) => user.role === 'user')
+          .map((user: any) => {
+            // 获取用户的订单数据
+            const orderStats = getUserOrderStats(user.id);
+            
+            return {
+              id: user.id,
+              username: user.username,
+              name: user.username, // 用户名作为姓名
+              phone: user.phone || '',
+              email: user.email || '',
+              status: user.status || 'active',
+              balance: orderStats.balance || 0,
+              totalRecharge: orderStats.totalRecharge || 0,
+              totalWithdraw: orderStats.totalWithdraw || 0,
+              rechargeCount: orderStats.rechargeCount || 0,
+              withdrawCount: orderStats.withdrawCount || 0,
+              createdAt: user.createdAt || new Date().toISOString(),
+              lastLoginAt: user.lastLoginAt || null,
+              remark: user.remark || ''
+            } as Customer;
+          });
+        
+        customers.value = clientUsers;
+        console.log(`已从本地存储加载 ${clientUsers.length} 个客户数据`);
+      } else {
+        customers.value = [];
+        console.log('未找到客户数据');
+      }
+    } catch (localError) {
+      console.error('从本地加载客户数据失败:', localError);
+      customers.value = [];
+      ElMessage.error('加载客户数据失败');
+    }
   } finally {
-    loading.value = false
+    loading.value = false;
     // 更新统计数据
-    updateStats()
+    updateStats();
   }
-}
+};
 
 // 获取用户订单统计
 const getUserOrderStats = (userId: string | number) => {

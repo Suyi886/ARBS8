@@ -264,14 +264,30 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// 获取所有用户（仅管理员）
-app.get('/api/users', authenticateToken, checkAdmin, async (req, res) => {
+// 获取所有用户（管理员）
+app.get('/api/users', authenticateToken, async (req, res) => {
   try {
+    console.log('获取所有用户请求');
+    
+    // 查询所有用户，但排除当前用户（防止管理员删除自己）
     const [users] = await pool.query(
-      'SELECT id, username, role, status, balance, created_at as createdAt, updated_at as updatedAt FROM users'
+      'SELECT id, username, role, status, balance, created_at FROM users WHERE id != ?',
+      [req.user.id]
     );
     
-    res.json({ users });
+    console.log(`查询到 ${users.length} 个用户`);
+    
+    // 格式化用户数据
+    const formattedUsers = users.map(user => ({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      status: user.status,
+      balance: parseFloat(user.balance || 0),
+      createdAt: user.created_at
+    }));
+    
+    res.json({ users: formattedUsers });
   } catch (error) {
     console.error('获取用户列表错误:', error);
     res.status(500).json({ message: '服务器错误' });
@@ -380,11 +396,15 @@ app.delete('/api/users/:id', authenticateToken, checkAdmin, async (req, res) => 
 // 迁移localStorage用户到MySQL
 app.post('/api/migrate-users', async (req, res) => {
   try {
+    console.log('------- 开始用户迁移 -------');
     const { users } = req.body;
     
     if (!Array.isArray(users) || users.length === 0) {
+      console.log('无效的用户数据:', req.body);
       return res.status(400).json({ message: '无效的用户数据' });
     }
+    
+    console.log(`准备迁移 ${users.length} 个用户`);
     
     const results = {
       success: 0,
@@ -395,6 +415,8 @@ app.post('/api/migrate-users', async (req, res) => {
     // 处理每个用户
     for (const user of users) {
       try {
+        console.log(`开始处理用户: ${user.username}, 角色: ${user.role}`);
+        
         // 检查用户名是否已存在
         const [existingUsers] = await pool.query(
           'SELECT * FROM users WHERE username = ?',
@@ -402,6 +424,7 @@ app.post('/api/migrate-users', async (req, res) => {
         );
         
         if (existingUsers.length > 0) {
+          console.log(`用户 ${user.username} 已存在，跳过`);
           results.failed++;
           results.details.push({
             username: user.username,
@@ -411,45 +434,79 @@ app.post('/api/migrate-users', async (req, res) => {
           continue;
         }
         
+        // 确保角色值是有效的
+        let userRole = 'user';
+        if (user.role === 'admin') {
+          userRole = 'admin';
+        }
+        
+        console.log(`用户 ${user.username} 的角色将设置为: ${userRole}`);
+        
         // 哈希密码
-        const hashedPassword = await bcrypt.hash(user.password, 10);
+        const hashedPassword = await bcrypt.hash(user.password || '123456', 10);
+        
+        // 转换其他字段
+        const status = 'active';
+        const balance = user.balance || 0;
+        const createdAt = user.createdAt ? new Date(user.createdAt) : new Date();
+        
+        console.log(`插入用户 ${user.username} 的数据:`, { 
+          role: userRole, 
+          status, 
+          balance, 
+          createdAt: createdAt.toISOString() 
+        });
         
         // 插入用户
-        await pool.query(
-          'INSERT INTO users (username, password, role, status, balance, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-          [
-            user.username,
-            hashedPassword,
-            user.role || 'client',
-            user.status || 'active',
-            user.balance || 0,
-            new Date(user.createdAt || Date.now())
-          ]
-        );
-        
-        results.success++;
-        results.details.push({
-          username: user.username,
-          status: 'success'
-        });
-      } catch (error) {
-        console.error(`迁移用户 ${user.username} 错误:`, error);
+        try {
+          const [result] = await pool.query(
+            'INSERT INTO users (username, password, role, status, balance, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+            [
+              user.username,
+              hashedPassword,
+              userRole,
+              status,
+              balance,
+              createdAt
+            ]
+          );
+          
+          console.log(`用户 ${user.username} 迁移成功，ID: ${result.insertId}`);
+          results.success++;
+          results.details.push({
+            username: user.username,
+            status: 'success'
+          });
+        } catch (insertError) {
+          console.error(`插入用户 ${user.username} 到数据库失败:`, insertError);
+          results.failed++;
+          results.details.push({
+            username: user.username,
+            status: 'failed',
+            reason: `数据库错误: ${insertError.message}`
+          });
+        }
+      } catch (userError) {
+        console.error(`处理用户 ${user.username} 过程中出错:`, userError);
         results.failed++;
         results.details.push({
           username: user.username,
           status: 'failed',
-          reason: '内部错误'
+          reason: `处理错误: ${userError.message}`
         });
       }
     }
+    
+    console.log('------- 迁移完成 -------');
+    console.log(`总结: 成功 ${results.success} 个, 失败 ${results.failed} 个`);
     
     res.json({
       message: '用户迁移完成',
       results
     });
   } catch (error) {
-    console.error('迁移用户错误:', error);
-    res.status(500).json({ message: '服务器错误' });
+    console.error('整体迁移过程错误:', error);
+    res.status(500).json({ message: '服务器错误', error: error.message });
   }
 });
 
