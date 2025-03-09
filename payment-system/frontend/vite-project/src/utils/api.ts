@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus';
 import axios from 'axios';
 
 // API基础URL配置
-const API_BASE_URL = import.meta.env.PROD 
+const API_BASE_URL = (process.env.NODE_ENV === 'production')
   ? 'https://arbs8-backend.onrender.com/api' // 生产环境API地址
   : 'http://localhost:3001/api';             // 开发环境API地址
 

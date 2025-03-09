@@ -361,7 +361,7 @@ const submitRecharge = async () => {
         type: 'new_order',
         orderId: Date.now(),
         orderNumber: generatedOrderNumber.value,
-        type: 'recharge',
+        orderType: 'recharge',
         amount: rechargeForm.amount.toFixed(2),
         status: 'recharge_pending',
         timestamp: new Date().toISOString()
@@ -756,4 +756,4 @@ const getStatusLabel = (status: string) => {
   display: block;
   border-radius: 2px;
 }
-</style> 
+</style>
