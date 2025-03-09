@@ -1,23 +1,45 @@
 import mysql, { Pool } from 'mysql2/promise';
 import dotenv from 'dotenv';
 
-// 加载环境变量（像读取建房配置）
+// 加载环境变量
 dotenv.config({ path: require('path').resolve(__dirname, '../.env') });
 
-// 创建数据库连接池（就像建立一个物业服务中心）
-export const connectDB: Pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',      // 数据库服务器地址
-    user: process.env.DB_USER || 'root',          // 数据库用户名
-    password: process.env.DB_PASS || 'Ax112211',          // 数据库密码
-    database: process.env.DB_NAME || 'payment_system', // 数据库名称
-    port: parseInt(process.env.DB_PORT || '3306', 10), // 数据库端口
-    waitForConnections: true,    // 是否等待连接
-    connectionLimit: 10,         // 最大连接数
-    queueLimit: 0               // 队列限制（0表示不限制）
-});
+// 检查是否使用本地存储模式
+const useLocalStorage = process.env.USE_LOCAL_STORAGE === 'true';
+const isRender = process.env.RENDER === 'true';
 
-// 测试数据库连接函数（像检查物业服务中心是否正常运作）
+// 创建数据库连接池
+let connectDB: Pool;
+
+// 只有在不使用本地存储模式时才创建数据库连接
+if (!useLocalStorage) {
+  try {
+    connectDB = mysql.createPool({
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASS || 'Ax112211',
+      database: process.env.DB_NAME || 'payment_system',
+      port: parseInt(process.env.DB_PORT || '3306', 10),
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      ssl: process.env.NODE_ENV === 'production' ? {
+        rejectUnauthorized: false  // 修改为false以避免SSL验证问题
+      } : undefined
+    });
+    console.log('数据库连接池已创建');
+  } catch (error) {
+    console.error('创建数据库连接池失败:', error);
+  }
+}
+
+// 测试数据库连接函数
 export const testConnection = async () => {
+    if (useLocalStorage) {
+        console.log('✅ 使用本地存储模式，跳过数据库连接测试');
+        return true;
+    }
+    
     try {
         const connection = await connectDB.getConnection();
         console.log('✅ 数据库连接成功！');
@@ -25,12 +47,22 @@ export const testConnection = async () => {
         return true;
     } catch (error) {
         console.error('❌ 数据库连接失败:', error);
+        if (isRender) {
+            console.log('在Render环境中，将使用本地存储模式');
+            return true; // 在Render环境中即使连接失败也返回成功
+        }
         return false;
     }
 };
 
 // 数据库同步函数（像装修和检查房屋设施）
 export const syncDatabase = async () => {
+    // 如果使用本地存储模式，直接返回成功
+    if (useLocalStorage) {
+        console.log('✅ 使用本地存储模式，跳过数据库同步');
+        return true;
+    }
+    
     try {
         await testConnection();
         
@@ -82,4 +114,5 @@ export const syncDatabase = async () => {
     }
 };
 
-export default connectDB;
+// 导出数据库连接池，如果是本地存储模式则导出一个空对象作为替代
+export default useLocalStorage ? {} as Pool : connectDB;

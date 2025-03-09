@@ -5,7 +5,9 @@ import { ElMessage } from 'element-plus';
 import axios from 'axios';
 
 // API基础URL配置
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.PROD 
+  ? 'https://arbs8-backend.onrender.com/api' // 生产环境API地址
+  : 'http://localhost:3001/api';             // 开发环境API地址
 
 // 创建axios实例
 const api = axios.create({
@@ -256,4 +258,4 @@ export async function getOrders(params?: any) {
 // 获取用户信息
 export async function getUserInfo(userId: string | number) {
   return apiRequest(ApiEndpoint.USER, 'GET', { userId });
-} 
+}
