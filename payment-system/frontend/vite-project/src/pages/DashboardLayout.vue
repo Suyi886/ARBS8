@@ -115,6 +115,7 @@ import {
   QuestionFilled,
   Upload
 } from '@element-plus/icons-vue'
+import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -186,6 +187,11 @@ const handleCommand = (command: string) => {
 .header-right {
   display: flex;
   align-items: center;
+  gap: 16px;
+}
+
+.language-switcher-wrapper {
+  margin-right: 8px;
 }
 
 .avatar-wrapper {

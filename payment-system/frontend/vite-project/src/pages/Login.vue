@@ -1,12 +1,15 @@
 <!-- src/pages/Login.vue -->
 <template>
   <div class="login-container">
+    <div class="language-switcher-container">
+      <LanguageSwitcher />
+    </div>
     <div class="login-content">
       <el-card class="login-card">
         <template #header>
           <div class="card-header">
-            <h2>ARBS8 系统登录</h2>
-            <p class="subtitle">欢迎回来，请登录您的账户</p>
+            <h2>{{ $t('login.title') }}</h2>
+            <p class="subtitle">{{ $t('login.welcome') }}</p>
           </div>
         </template>
         
@@ -20,7 +23,7 @@
           <el-form-item prop="username">
             <el-input 
               v-model="loginForm.username"
-              placeholder="请输入用户名"
+              :placeholder="$t('login.username')"
               prefix-icon="User"
               class="custom-input"
             />
@@ -30,7 +33,7 @@
             <el-input 
               v-model="loginForm.password"
               type="password"
-              placeholder="请输入密码"
+              :placeholder="$t('login.password')"
               prefix-icon="Lock"
               show-password
               class="custom-input"
@@ -44,7 +47,7 @@
               @click="handleLogin"
               class="login-button"
             >
-              登录
+              {{ $t('login.loginButton') }}
             </el-button>
           </el-form-item>
 
@@ -55,7 +58,7 @@
               @click="goToRegister"
               class="register-link"
             >
-              没有账号？立即注册
+              {{ $t('login.registerLink') }}
             </el-button>
           </div>
         </el-form>
@@ -71,9 +74,12 @@ import type { FormInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'  // 导入用户store
 import { webSocketService } from '@/utils/websocket'  // 导入WebSocket服务
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'  // 导入语言切换组件
+import { useI18n } from 'vue-i18n'  // 导入useI18n钩子
 
 const router = useRouter()
 const userStore = useUserStore()  // 使用用户store
+const { t } = useI18n()  // 使用i18n的t函数
 const loginFormRef = ref<FormInstance>()
 const loading = ref(false)
 
@@ -100,7 +106,7 @@ const handleLogin = async () => {
     // 禁用模拟数据生成，避免虚假订单
     webSocketService.setMockDataEnabled(false)
     
-    ElMessage.success('登录成功')
+    ElMessage.success(t('login.loginSuccess'))
     
     // 根据角色自动跳转到相应页面
     if (userStore.isAdmin) {
@@ -111,7 +117,7 @@ const handleLogin = async () => {
     
   } catch (error: any) {
     console.error('登录失败:', error)
-    ElMessage.error(userStore.error || '登录失败，请检查用户名和密码')
+    ElMessage.error(userStore.error || t('login.loginFailed'))
   } finally {
     loading.value = false
   }
@@ -131,6 +137,13 @@ const goToRegister = () => {
   background: linear-gradient(135deg, #e0f7fa 0%, #80deea 100%);
   position: relative;
   overflow: hidden;
+}
+
+.language-switcher-container {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
 }
 
 .login-container::before {

@@ -119,9 +119,9 @@
           
           <el-descriptions :column="1" border>
             <el-descriptions-item label="提现金额">{{ withdrawForm.amount.toFixed(2) }} 元</el-descriptions-item>
-            <el-descriptions-item label="收款银行">{{ selectedCard.bankName }}</el-descriptions-item>
-            <el-descriptions-item label="收款账号">{{ maskCardNumber(selectedCard.cardNumber) }}</el-descriptions-item>
-            <el-descriptions-item label="收款人">{{ selectedCard.holderName }}</el-descriptions-item>
+            <el-descriptions-item label="收款银行">{{ selectedCard?.bankName || '' }}</el-descriptions-item>
+            <el-descriptions-item label="收款账号">{{ selectedCard ? maskCardNumber(selectedCard.cardNumber) : '' }}</el-descriptions-item>
+            <el-descriptions-item label="收款人">{{ selectedCard?.holderName || '' }}</el-descriptions-item>
             <el-descriptions-item label="手续费">0.00 元</el-descriptions-item>
             <el-descriptions-item label="实际到账">{{ withdrawForm.amount.toFixed(2) }} 元</el-descriptions-item>
             <el-descriptions-item label="提现说明">{{ withdrawForm.remark || '无' }}</el-descriptions-item>
@@ -507,7 +507,7 @@ const submitWithdraw = async () => {
         type: 'new_order',
         orderId: Date.now(),
         orderNumber: generatedOrderNumber.value,
-        type: 'withdraw',
+        orderType: 'withdraw',
         amount: withdrawForm.amount.toFixed(2),
         status: 'withdraw_pending',
         timestamp: new Date().toISOString()
@@ -916,4 +916,4 @@ const getStatusLabel = (status: string) => {
   display: block;
   border-radius: 2px;
 }
-</style> 
+</style>

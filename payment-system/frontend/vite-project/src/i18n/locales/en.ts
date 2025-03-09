@@ -1,4 +1,31 @@
 export default {
+  login: {
+    title: 'ARBS8 System Login',
+    welcome: 'Welcome back, please login to your account',
+    username: 'Username',
+    password: 'Password',
+    loginButton: 'Login',
+    registerLink: 'No account? Register now',
+    loginSuccess: 'Login successful',
+    loginFailed: 'Login failed, please check your username and password'
+  },
+  register: {
+    title: 'ARBS8 User Registration',
+    subtitle: 'Create your regular user account to start using the system',
+    userHint: 'Note: This page is for regular user registration only',
+    username: 'Username',
+    password: 'Password',
+    confirmPassword: 'Confirm Password',
+    registerButton: 'Register',
+    loginLink: 'Already have an account? Back to login',
+    registerSuccess: 'Registration successful',
+    registerFailed: 'Registration failed',
+    passwordMismatch: 'The two passwords do not match',
+    usernameRequired: 'Please enter a username',
+    passwordRequired: 'Please enter a password',
+    usernameLength: 'Username must be at least 3 characters',
+    passwordLength: 'Password must be at least 6 characters'
+  },
   common: {
     save: 'Save',
     cancel: 'Cancel',
@@ -87,4 +114,4 @@ export default {
       withdraw_failed: 'Withdrawal Failed'
     }
   }
-} 
+}

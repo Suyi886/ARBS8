@@ -1,13 +1,16 @@
 <!-- src/pages/Register.vue -->
 <template>
     <div class="register-container">
+      <div class="language-switcher-container">
+        <LanguageSwitcher />
+      </div>
       <div class="register-content">
         <el-card class="register-card">
           <template #header>
             <div class="card-header">
-              <h2>ARBS8 用户注册</h2>
-              <p class="subtitle">创建您的普通用户账户，开始使用系统</p>
-              <p class="user-hint">注意：此页面仅供普通用户注册使用</p>
+              <h2>{{ $t('register.title') }}</h2>
+              <p class="subtitle">{{ $t('register.subtitle') }}</p>
+              <p class="user-hint">{{ $t('register.userHint') }}</p>
             </div>
           </template>
           
@@ -20,7 +23,7 @@
             <el-form-item prop="username">
               <el-input 
                 v-model="registerForm.username"
-                placeholder="请输入用户名"
+                :placeholder="$t('register.username')"
                 prefix-icon="User"
                 class="custom-input"
               />
@@ -30,7 +33,7 @@
               <el-input 
                 v-model="registerForm.password"
                 type="password"
-                placeholder="请输入密码"
+                :placeholder="$t('register.password')"
                 prefix-icon="Lock"
                 show-password
                 class="custom-input"
@@ -41,7 +44,7 @@
               <el-input 
                 v-model="registerForm.confirmPassword"
                 type="password"
-                placeholder="请确认密码"
+                :placeholder="$t('register.confirmPassword')"
                 prefix-icon="Lock"
                 show-password
                 class="custom-input"
@@ -55,7 +58,7 @@
                 @click="handleRegister"
                 class="register-button"
               >
-                注册
+                {{ $t('register.registerButton') }}
               </el-button>
             </el-form-item>
 
@@ -65,7 +68,7 @@
                 @click="goToLogin"
                 class="login-link"
               >
-                已有账号？返回登录
+                {{ $t('register.loginLink') }}
               </el-button>
             </div>
           </el-form>
@@ -80,9 +83,12 @@
   import type { FormInstance } from 'element-plus'
   import { ElMessage } from 'element-plus'
   import { useUserStore } from '@/stores/user'  // 导入用户store
+  import LanguageSwitcher from '@/components/LanguageSwitcher.vue'  // 导入语言切换组件
+  import { useI18n } from 'vue-i18n'  // 导入useI18n钩子
   
   const router = useRouter()
   const userStore = useUserStore()  // 使用用户store
+  const { t } = useI18n()  // 使用i18n的t函数
   const registerFormRef = ref<FormInstance>()
   const loading = ref(false)
   
@@ -95,9 +101,9 @@
   
   const validatePass = (rule: any, value: string, callback: any) => {
     if (value === '') {
-      callback(new Error('请输入密码'))
+      callback(new Error(t('register.passwordRequired')))
     } else if (value !== registerForm.password) {
-      callback(new Error('两次输入密码不一致'))
+      callback(new Error(t('register.passwordMismatch')))
     } else {
       callback()
     }
@@ -105,15 +111,15 @@
 
   const rules = {
     username: [
-      { required: true, message: '请输入用户名', trigger: 'blur' },
-      { min: 3, message: '用户名长度至少为3个字符', trigger: 'blur' }
+      { required: true, message: t('register.usernameRequired'), trigger: 'blur' },
+      { min: 3, message: t('register.usernameLength'), trigger: 'blur' }
     ],
     password: [
-      { required: true, message: '请输入密码', trigger: 'blur' },
-      { min: 6, message: '密码长度至少为6个字符', trigger: 'blur' }
+      { required: true, message: t('register.passwordRequired'), trigger: 'blur' },
+      { min: 6, message: t('register.passwordLength'), trigger: 'blur' }
     ],
     confirmPassword: [
-      { required: true, message: '请确认密码', trigger: 'blur' },
+      { required: true, message: t('register.passwordRequired'), trigger: 'blur' },
       { validator: validatePass, trigger: 'blur' }
     ]
   }
@@ -146,9 +152,9 @@
       
       // 显示更详细的错误信息
       if (error.response && error.response.data) {
-        ElMessage.error(error.response.data.message || '注册失败，请检查服务器连接');
+        ElMessage.error(error.response.data.message || t('register.serverError'));
       } else {
-        ElMessage.error(userStore.error || '注册失败，请检查输入信息');
+        ElMessage.error(userStore.error || t('register.inputError'));
       }
     } finally {
       loading.value = false
@@ -169,6 +175,13 @@
     background: linear-gradient(135deg, #e0f7fa 0%, #80deea 100%);
     position: relative;
     overflow: hidden;
+  }
+  
+  .language-switcher-container {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
   }
   
   .register-container::before {

@@ -1,4 +1,31 @@
 export default {
+  login: {
+    title: 'ARBS8 系统登录',
+    welcome: '欢迎回来，请登录您的账户',
+    username: '用户名',
+    password: '密码',
+    loginButton: '登录',
+    registerLink: '没有账号？立即注册',
+    loginSuccess: '登录成功',
+    loginFailed: '登录失败，请检查用户名和密码'
+  },
+  register: {
+    title: 'ARBS8 用户注册',
+    subtitle: '创建您的普通用户账户，开始使用系统',
+    userHint: '注意：此页面仅供普通用户注册使用',
+    username: '用户名',
+    password: '密码',
+    confirmPassword: '确认密码',
+    registerButton: '注册',
+    loginLink: '已有账号？返回登录',
+    registerSuccess: '注册成功',
+    registerFailed: '注册失败',
+    passwordMismatch: '两次输入密码不一致',
+    usernameRequired: '请输入用户名',
+    passwordRequired: '请输入密码',
+    usernameLength: '用户名长度至少为3个字符',
+    passwordLength: '密码长度至少为6个字符'
+  },
   common: {
     save: '保存',
     cancel: '取消',
@@ -87,4 +114,4 @@ export default {
       withdraw_failed: '提现失败'
     }
   }
-} 
+}
