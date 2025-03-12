@@ -72,7 +72,9 @@ const checkAdmin = (req, res, next) => {
   next();
 };
 
-// 在API定义之前添加数据库验证
+// 本地存储中的全局订单数据（仅用于不使用数据库时）
+let localOrders = [];
+ 
 // 验证数据库连接和表结构
 const validateDatabase = async () => {
   console.log('开始验证数据库连接和结构...');
@@ -81,7 +83,6 @@ const validateDatabase = async () => {
     // 测试数据库连接
     const connection = await pool.getConnection();
     console.log('✅ MySQL数据库连接成功');
-    connection.release();
     
     // 检查users表是否存在
     const [tables] = await connection.query(
@@ -136,6 +137,36 @@ const validateDatabase = async () => {
     
     console.log(`现有管理员用户: ${admins[0].count}个`);
     
+    // 检查orders表是否存在
+    const [ordersTables] = await connection.query(
+      "SHOW TABLES LIKE 'orders'"
+    );
+    
+    if (ordersTables.length === 0) {
+      console.log('orders表不存在，正在创建...');
+      
+      // 创建orders表
+      await connection.query(`
+        CREATE TABLE orders (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          order_number VARCHAR(50) NOT NULL UNIQUE,
+          type ENUM('recharge', 'withdraw') NOT NULL,
+          amount DECIMAL(10, 2) NOT NULL,
+          customer_name VARCHAR(255),
+          customer_account VARCHAR(255),
+          status VARCHAR(50) NOT NULL,
+          remark TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          updated_by VARCHAR(255)
+        )
+      `);
+      console.log('✅ orders表创建成功');
+    } else {
+      console.log('✅ orders表已存在');
+    }
+    
+    connection.release();
     return true;
   } catch (error) {
     console.error('数据库验证失败:', error);
@@ -737,58 +768,536 @@ app.post('/api/migrate-users', async (req, res) => {
   }
 });
 
-// 添加环境变量检查，在Render环境中跳过数据库验证
+// 订单管理API
+// 获取订单列表
+app.get('/api/orders', authenticateToken, async (req, res) => {
+  try {
+    // 支持过滤条件
+    const { type, status } = req.query;
+    let orders = [];
+
+    if (useLocalStorage()) {
+      // 使用本地存储
+      orders = localOrders;
+      
+      // 应用过滤
+      if (type) {
+        orders = orders.filter(order => order.type === type);
+      }
+      if (status) {
+        orders = orders.filter(order => order.status === status);
+      }
+    } else {
+      // 构建SQL查询
+      let query = "SELECT * FROM orders";
+      const conditions = [];
+      const params = [];
+      
+      if (type) {
+        conditions.push("type = ?");
+        params.push(type);
+      }
+      
+      if (status) {
+        conditions.push("status = ?");
+        params.push(status);
+      }
+      
+      if (conditions.length > 0) {
+        query += " WHERE " + conditions.join(" AND ");
+      }
+      
+      query += " ORDER BY created_at DESC";
+      
+      // 执行查询
+      const [rows] = await pool.query(query, params);
+      orders = rows;
+    }
+    
+    res.json({ success: true, data: orders });
+  } catch (error) {
+    console.error('获取订单列表失败:', error);
+    res.status(500).json({ success: false, message: '获取订单列表失败' });
+  }
+});
+
+// 创建新订单
+app.post('/api/orders', async (req, res) => {
+  try {
+    const { 
+      order_number, 
+      type, 
+      amount, 
+      customer_name, 
+      customer_account, 
+      status, 
+      remark 
+    } = req.body;
+    
+    // 验证必填字段
+    if (!order_number || !type || !amount || !status) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '缺少必填字段：订单号、类型、金额和状态为必填' 
+      });
+    }
+    
+    if (useLocalStorage()) {
+      // 检查订单号是否已存在
+      const existingOrder = localOrders.find(o => o.order_number === order_number);
+      if (existingOrder) {
+        return res.status(400).json({ 
+          success: false, 
+          message: '订单号已存在' 
+        });
+      }
+      
+      // 创建新订单
+      const newOrder = {
+        id: Date.now(),
+        order_number,
+        type,
+        amount,
+        customer_name: customer_name || '',
+        customer_account: customer_account || '',
+        status,
+        remark: remark || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        updated_by: 'system'
+      };
+      
+      // 添加到本地存储
+      localOrders.push(newOrder);
+      
+      res.status(201).json({ 
+        success: true, 
+        message: '订单创建成功', 
+        data: newOrder 
+      });
+    } else {
+      // 插入数据库
+      const [result] = await pool.query(
+        `INSERT INTO orders (
+          order_number, 
+          type, 
+          amount, 
+          customer_name, 
+          customer_account, 
+          status, 
+          remark, 
+          updated_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          order_number,
+          type,
+          amount,
+          customer_name || null,
+          customer_account || null,
+          status,
+          remark || null,
+          'system'
+        ]
+      );
+      
+      // 获取新创建的订单
+      const [newOrder] = await pool.query(
+        'SELECT * FROM orders WHERE id = ?',
+        [result.insertId]
+      );
+      
+      res.status(201).json({ 
+        success: true, 
+        message: '订单创建成功', 
+        data: newOrder[0]
+      });
+    }
+  } catch (error) {
+    console.error('创建订单失败:', error);
+    res.status(500).json({ success: false, message: '创建订单失败' });
+  }
+});
+
+// 获取单个订单详情
+app.get('/api/orders/:orderNumber', authenticateToken, async (req, res) => {
+  try {
+    const { orderNumber } = req.params;
+    
+    if (useLocalStorage()) {
+      const order = localOrders.find(o => o.order_number === orderNumber);
+      if (!order) {
+        return res.status(404).json({ success: false, message: '订单不存在' });
+      }
+      
+      res.json({ success: true, data: order });
+    } else {
+      const [rows] = await pool.query(
+        'SELECT * FROM orders WHERE order_number = ?',
+        [orderNumber]
+      );
+      
+      if (rows.length === 0) {
+        return res.status(404).json({ success: false, message: '订单不存在' });
+      }
+      
+      res.json({ success: true, data: rows[0] });
+    }
+  } catch (error) {
+    console.error('获取订单详情失败:', error);
+    res.status(500).json({ success: false, message: '获取订单详情失败' });
+  }
+});
+
+// 更新订单状态
+app.put('/api/orders/:orderNumber/status', authenticateToken, async (req, res) => {
+  try {
+    const { orderNumber } = req.params;
+    const { status, remark } = req.body;
+    
+    if (!status) {
+      return res.status(400).json({ success: false, message: '状态为必填项' });
+    }
+    
+    if (useLocalStorage()) {
+      const orderIndex = localOrders.findIndex(o => o.order_number === orderNumber);
+      if (orderIndex === -1) {
+        return res.status(404).json({ success: false, message: '订单不存在' });
+      }
+      
+      // 更新订单
+      const updatedOrder = {
+        ...localOrders[orderIndex],
+        status,
+        remark: remark || localOrders[orderIndex].remark,
+        updated_at: new Date().toISOString(),
+        updated_by: req.user.username
+      };
+      
+      localOrders[orderIndex] = updatedOrder;
+      
+      res.json({ success: true, message: '订单状态更新成功', data: updatedOrder });
+    } else {
+      // 检查订单是否存在
+      const [existingOrders] = await pool.query(
+        'SELECT * FROM orders WHERE order_number = ?',
+        [orderNumber]
+      );
+      
+      if (existingOrders.length === 0) {
+        return res.status(404).json({ success: false, message: '订单不存在' });
+      }
+      
+      // 更新订单状态
+      await pool.query(
+        'UPDATE orders SET status = ?, remark = ?, updated_by = ? WHERE order_number = ?',
+        [status, remark || existingOrders[0].remark, req.user.username, orderNumber]
+      );
+      
+      // 获取更新后的订单
+      const [updatedOrder] = await pool.query(
+        'SELECT * FROM orders WHERE order_number = ?',
+        [orderNumber]
+      );
+      
+      res.json({ 
+        success: true, 
+        message: '订单状态更新成功', 
+        data: updatedOrder[0]
+      });
+    }
+  } catch (error) {
+    console.error('更新订单状态失败:', error);
+    res.status(500).json({ success: false, message: '更新订单状态失败' });
+  }
+});
+
+// 修改initLocalStorage函数以包含订单数据初始化
+const initLocalStorage = async () => {
+  try {
+    // 初始化订单数据
+    localOrders = [];
+    
+    console.log('本地存储初始化完成（包括订单数据）');
+  } catch (error) {
+    console.error('初始化本地存储失败:', error);
+  }
+};
+
+// 修改服务器启动逻辑，增加WebSocket支持
 if (useLocalStorage()) {
-  console.log('使用本地存储模式，跳过数据库连接验证');
+  console.log('使用本地存储模式');
   
-  // 初始化本地存储中的默认用户（管理员账户）
-  const initLocalStorage = async () => {
-    try {
-      // 如果用户列表为空，创建默认管理员账户
-      if (!app.locals.users || app.locals.users.length === 0) {
-        console.log('初始化本地存储中的默认管理员账户');
+  // 使用立即执行的异步函数包装await调用
+  (async function() {
+    // 调用初始化函数
+    await initLocalStorage();
+    
+    // 启动服务器并添加WebSocket支持
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`服务器运行在端口 ${PORT} (本地存储模式)`);
+    });
+    
+    // 添加WebSocket服务器
+    const WebSocket = require('ws');
+    const wss = new WebSocket.Server({ server });
+    
+    // 存储所有连接的客户端
+    const wsClients = new Set();
+    
+    // 当客户端连接时
+    wss.on('connection', function connection(ws) {
+      console.log('新的WebSocket连接');
+      
+      // 添加到客户端集合
+      wsClients.add(ws);
+      
+      // 当收到客户端消息时
+      ws.on('message', function incoming(message) {
+        console.log('收到WebSocket消息:', message.toString());
         
-        // 创建管理员密码哈希
-        const adminPassword = await bcrypt.hash('admin123', 10);
-        
-        // 创建默认管理员
-        const adminUser = {
-          id: 1,
-          username: 'admin',
-          password: adminPassword,
-          role: 'admin',
-          status: 'active',
-          balance: 0,
-          created_at: new Date().toISOString()
+        try {
+          const data = JSON.parse(message.toString());
+          
+          // 处理不同类型的消息
+          if (data.type === 'order_notification') {
+            // 将消息广播给所有客户端
+            broadcastMessage(data);
+            
+            // 保存订单到系统
+            if (data.orderData) {
+              saveOrderFromNotification(data.orderData);
+            }
+          }
+        } catch (error) {
+          console.error('处理WebSocket消息出错:', error);
+        }
+      });
+      
+      // 当连接关闭时
+      ws.on('close', function() {
+        console.log('WebSocket连接关闭');
+        wsClients.delete(ws);
+      });
+      
+      // 发送连接成功消息
+      ws.send(JSON.stringify({
+        type: 'connection',
+        message: 'WebSocket连接成功',
+        timestamp: Date.now()
+      }));
+    });
+    
+    // 广播消息给所有连接的客户端
+    function broadcastMessage(data) {
+      const message = JSON.stringify(data);
+      
+      wsClients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(message);
+        }
+      });
+    }
+    
+    // 从通知保存订单
+    async function saveOrderFromNotification(orderData) {
+      try {
+        // 转换订单数据格式以适应我们的系统
+        const order = {
+          order_number: orderData.orderNumber,
+          type: orderData.type,
+          amount: orderData.amount,
+          customer_name: orderData.customerName || 'Game User',
+          customer_account: orderData.customerAccount || '',
+          status: orderData.status,
+          remark: orderData.remark || ''
         };
         
-        // 保存到应用本地存储
-        app.locals.users = [adminUser];
+        // 检查订单是否已存在
+        const existingOrder = localOrders.find(o => o.order_number === order.order_number);
         
-        console.log('默认管理员账户创建成功，用户名: admin, 密码: admin123');
-      } else {
-        console.log(`本地存储中已有 ${app.locals.users.length} 个用户`);
+        if (existingOrder) {
+          // 更新订单状态
+          const orderIndex = localOrders.findIndex(o => o.order_number === order.order_number);
+          localOrders[orderIndex] = {
+            ...localOrders[orderIndex],
+            status: order.status,
+            updated_at: new Date().toISOString(),
+            updated_by: 'system_notification'
+          };
+          
+          console.log(`订单 ${order.order_number} 状态已更新为 ${order.status}`);
+        } else {
+          // 创建新订单
+          const newOrder = {
+            id: Date.now(),
+            order_number: order.order_number,
+            type: order.type,
+            amount: order.amount,
+            customer_name: order.customer_name,
+            customer_account: order.customer_account,
+            status: order.status,
+            remark: order.remark,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            updated_by: 'system_notification'
+          };
+          
+          localOrders.push(newOrder);
+          console.log(`新订单 ${order.order_number} 已创建`);
+        }
+        
+        // 通知所有客户端订单更新
+        broadcastMessage({
+          type: 'order_update',
+          orderNumber: order.order_number,
+          status: order.status,
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        console.error('保存订单通知失败:', error);
       }
-    } catch (error) {
-      console.error('初始化本地存储失败:', error);
     }
-  };
-  
-  // 调用初始化函数
-  initLocalStorage();
-  
-  // 直接启动服务器
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`服务器运行在端口 ${PORT} (本地存储模式)`);
+  })().catch(err => {
+    console.error('启动服务器时发生错误:', err);
+    process.exit(1);
   });
 } else {
   // 原来的数据库验证和启动代码
   validateDatabase().then(success => {
     if (success) {
-      // 启动服务器
-      app.listen(PORT, () => {
+      // 启动服务器并添加WebSocket支持
+      const server = app.listen(PORT, () => {
         console.log(`服务器运行在端口 ${PORT}`);
       });
+      
+      // 添加WebSocket服务器
+      const WebSocket = require('ws');
+      const wss = new WebSocket.Server({ server });
+      
+      // 存储所有连接的客户端
+      const wsClients = new Set();
+      
+      // 当客户端连接时
+      wss.on('connection', function connection(ws) {
+        console.log('新的WebSocket连接');
+        
+        // 添加到客户端集合
+        wsClients.add(ws);
+        
+        // 当收到客户端消息时
+        ws.on('message', function incoming(message) {
+          console.log('收到WebSocket消息:', message.toString());
+          
+          try {
+            const data = JSON.parse(message.toString());
+            
+            // 处理不同类型的消息
+            if (data.type === 'order_notification') {
+              // 将消息广播给所有客户端
+              broadcastMessage(data);
+              
+              // 保存订单到系统
+              if (data.orderData) {
+                saveOrderFromNotification(data.orderData);
+              }
+            }
+          } catch (error) {
+            console.error('处理WebSocket消息出错:', error);
+          }
+        });
+        
+        // 当连接关闭时
+        ws.on('close', function() {
+          console.log('WebSocket连接关闭');
+          wsClients.delete(ws);
+        });
+        
+        // 发送连接成功消息
+        ws.send(JSON.stringify({
+          type: 'connection',
+          message: 'WebSocket连接成功',
+          timestamp: Date.now()
+        }));
+      });
+      
+      // 广播消息给所有连接的客户端
+      function broadcastMessage(data) {
+        const message = JSON.stringify(data);
+        
+        wsClients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+          }
+        });
+      }
+      
+      // 从通知保存订单
+      async function saveOrderFromNotification(orderData) {
+        try {
+          // 转换订单数据格式以适应我们的系统
+          const order = {
+            order_number: orderData.orderNumber,
+            type: orderData.type,
+            amount: orderData.amount,
+            customer_name: orderData.customerName || 'Game User',
+            customer_account: orderData.customerAccount || '',
+            status: orderData.status,
+            remark: orderData.remark || ''
+          };
+          
+          // 检查订单是否已存在
+          const [rows] = await pool.query(
+            'SELECT * FROM orders WHERE order_number = ?',
+            [order.order_number]
+          );
+          
+          if (rows.length > 0) {
+            // 更新订单状态
+            await pool.query(
+              'UPDATE orders SET status = ?, updated_by = ? WHERE order_number = ?',
+              [order.status, 'system_notification', order.order_number]
+            );
+            
+            console.log(`订单 ${order.order_number} 状态已更新为 ${order.status}`);
+          } else {
+            // 创建新订单
+            await pool.query(
+              `INSERT INTO orders (
+                order_number, 
+                type, 
+                amount, 
+                customer_name, 
+                customer_account, 
+                status, 
+                remark, 
+                updated_by
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                order.order_number,
+                order.type,
+                order.amount,
+                order.customer_name,
+                order.customer_account,
+                order.status,
+                order.remark,
+                'system_notification'
+              ]
+            );
+            
+            console.log(`新订单 ${order.order_number} 已创建`);
+          }
+          
+          // 通知所有客户端订单更新
+          broadcastMessage({
+            type: 'order_update',
+            orderNumber: order.order_number,
+            status: order.status,
+            timestamp: Date.now()
+          });
+        } catch (error) {
+          console.error('保存订单通知失败:', error);
+        }
+      }
     } else {
       console.error('由于数据库验证失败，服务器未启动');
       process.exit(1);
