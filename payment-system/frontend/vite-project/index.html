@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>支付系统</title>
+    <script>
+        // 全局错误处理
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error('全局错误:', message);
+            console.error('错误位置:', source, lineno, colno);
+            console.error('错误对象:', error);
+            return false;
+        };
+        
+        // 未捕获的Promise错误
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('未处理的Promise错误:', event.reason);
+        });
+    </script>
 </head>
 <body>
     <div id="app"></div>

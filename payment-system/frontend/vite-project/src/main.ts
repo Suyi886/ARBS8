@@ -8,6 +8,9 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import i18n from './i18n'
 import { webSocketService } from './utils/websocket'
 
+// 添加调试信息
+console.log('开始创建Vue应用...')
+
 const app = createApp(App)
 
 // 注册所有Element Plus图标
@@ -15,6 +18,13 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
 
+// 添加错误处理
+app.config.errorHandler = (err, instance, info) => {
+  console.error('Vue错误:', err)
+  console.error('错误信息:', info)
+}
+
+console.log('应用插件中...')
 app.use(createPinia())
 app.use(router)
 app.use(ElementPlus)
@@ -40,4 +50,6 @@ router.afterEach((to, from) => {
   }
 })
 
+console.log('开始挂载应用...')
 app.mount('#app')
+console.log('应用挂载完成!')
