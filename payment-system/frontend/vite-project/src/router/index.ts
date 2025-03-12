@@ -134,12 +134,10 @@ const routes: RouteRecordRaw[] = [
   }
 ]
 
-// 检查router的创建是否类似这样
+// 创建路由实例
 const router = createRouter({
   history: createWebHistory(),
-  routes: [
-    // 您的路由配置
-  ]
+  routes // 正确传入routes数组
 })
 
 // 加强路由守卫 - 严格的权限控制
